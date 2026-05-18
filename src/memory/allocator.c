@@ -87,9 +87,7 @@ static inline int free_allocation(KL_Allocator* allocator, KL_Allocation allocat
 int kl_allocator_init(KL_Allocator* allocator, KL_AllocatorConfig cfg) {
   assert(cfg.capacity > 0);
   if (allocator->initialized) return 1;
-  if (cfg.alignment > 0) {
-    cfg.capacity = alignup(cfg.capacity, cfg.alignment);
-  }
+  cfg.capacity = alignup(cfg.capacity, 4);
   cfg.tracked_allocations_capacity = cfg.tracked_allocations_capacity > 0 ? cfg.tracked_allocations_capacity : 64;
   allocator->config = cfg;
   allocator->pages.length = 0;
@@ -176,10 +174,6 @@ void kl_allocator_reset(KL_Allocator* allocator) {
   if (tot_bytes_written > allocator->current_capacity) {
     kl_allocator_destroy_all_pages(allocator);
     allocator->current_capacity = tot_bytes_written;
-
-    if (allocator->config.alignment > 0) {
-      allocator->current_capacity = alignup(allocator->current_capacity, allocator->config.alignment);
-    }
   }
 
   allocator->allocations.length = 0;
@@ -193,10 +187,6 @@ static inline bool page_fits(KL_AllocatorPage* page, int64_t size) {
 }
 
 static inline KL_AllocatorPage* new_page(KL_Allocator* allocator, int64_t size) {
-  if (allocator->config.alignment > 0) {
-    size = alignup(size, allocator->config.alignment);
-  }
-  
   allocator->pages.items = (KL_AllocatorPage*)realloc(allocator->pages.items, (allocator->pages.length + 1) * sizeof(KL_AllocatorPage));
   assert(allocator->pages.items != 0);
   memset(&allocator->pages.items[allocator->pages.length], 0, sizeof(KL_AllocatorPage));

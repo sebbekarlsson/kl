@@ -8,7 +8,6 @@
 
 typedef struct {
   int64_t capacity;
-  int64_t alignment;
   int64_t tracked_allocations_capacity;
   bool track_allocations;
 } KL_AllocatorConfig;
