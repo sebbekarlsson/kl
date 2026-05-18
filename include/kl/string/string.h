@@ -1,5 +1,5 @@
-#ifndef KL_STRING_H
-#define KL_STRING_H
+#ifndef KL_STR_H
+#define KL_STR_H
 
 #include <string.h>
 #include <stdint.h>
@@ -32,5 +32,16 @@ KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length);
 KL_StrConst kl_str_const_remove_prefix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub);
+
+typedef struct {
+  char* data;
+  int64_t length;
+  int64_t capacity;
+} KL_StrBuffer;
+
+int64_t kl_str_buffer_avail(const KL_StrBuffer* buff);
+bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c);
+bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content);
+void kl_str_buffer_clear(KL_StrBuffer* buff);
 
 #endif

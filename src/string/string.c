@@ -72,3 +72,33 @@ KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub) {
     .length = KL_MAX(0, str.length - sub.length)
   };
 }
+
+int64_t kl_str_buffer_avail(const KL_StrBuffer* buff) {
+  if (buff->data == 0) return 0;
+  return buff->capacity - buff->length;
+}
+
+bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c) {
+  int64_t avail = kl_str_buffer_avail(buff);
+  if (avail <= 0) return false;
+  buff->data[buff->length++] = c;
+  return true;
+}
+
+bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content) {
+  if (content.length <= 0 || content.value == 0) return false;
+  
+  for (int64_t i = 0; i < content.length; i++) {
+    if (!kl_str_buffer_append_char(buff, content.value[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+void kl_str_buffer_clear(KL_StrBuffer* buff) {
+  if (buff->data == 0 || buff->capacity <= 0) return;
+  memset(&buff->data[0], 0, buff->capacity);
+  buff->length = 0;
+}
