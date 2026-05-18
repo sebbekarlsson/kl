@@ -34,32 +34,32 @@ static inline void add_allocation(KL_Allocator* allocator, KL_Allocation allocat
   assert(allocator->allocations.length < allocator->allocations.n_allocated);
   allocator->allocations.items[allocator->allocations.length++] = allocation;
 }
-
-static inline void remove_allocation(KL_Allocator* allocator, KL_Allocation allocation) {
-  if (allocator->allocations.items == 0 || allocator->allocations.n_allocated <= 0 || allocator->allocations.length <= 0) return;
-
-  int64_t idx = -1;
-
-  for (int64_t i = 0; i < allocator->allocations.length; i++) {
-    KL_Allocation a = allocator->allocations.items[i];
-    if (a.page == allocation.page && a.offset == allocation.offset && a.size == allocation.size) {
-      idx = i;
-      break;
-    }
-  }
-
-  if (idx < 0) return;
-
-  assert(idx < allocator->allocations.length);
-  assert(idx >= 0);
-
-  for (int64_t i = idx; i < allocator->allocations.length - 1; i++) {
-    allocator->allocations.items[i] = allocator->allocations.items[i + 1];
-  }
-
-  allocator->allocations.length -= 1;
-  assert(allocator->allocations.length >= 0);
-}
+// - DO NOT REMOVE -
+//static inline void remove_allocation(KL_Allocator* allocator, KL_Allocation allocation) {
+//  if (allocator->allocations.items == 0 || allocator->allocations.n_allocated <= 0 || allocator->allocations.length <= 0) return;
+//
+//  int64_t idx = -1;
+//
+//  for (int64_t i = 0; i < allocator->allocations.length; i++) {
+//    KL_Allocation a = allocator->allocations.items[i];
+//    if (a.page == allocation.page && a.offset == allocation.offset && a.size == allocation.size) {
+//      idx = i;
+//      break;
+//    }
+//  }
+//
+//  if (idx < 0) return;
+//
+//  assert(idx < allocator->allocations.length);
+//  assert(idx >= 0);
+//
+//  for (int64_t i = idx; i < allocator->allocations.length - 1; i++) {
+//    allocator->allocations.items[i] = allocator->allocations.items[i + 1];
+//  }
+//
+//  allocator->allocations.length -= 1;
+//  assert(allocator->allocations.length >= 0);
+//}
 
 static inline int free_allocation(KL_Allocator* allocator, KL_Allocation allocation) {
   if (allocator->allocations.items == 0 || allocator->allocations.n_allocated <= 0 || allocator->allocations.length <= 0) return 0;
@@ -286,8 +286,7 @@ static inline uint8_t* page_alloc(KL_Allocator* allocator, KL_AllocatorPage* pag
 static inline uint8_t* page_alloc_aligned(KL_Allocator* allocator, KL_AllocatorPage* page, int64_t size, size_t alignment, bool is_realloc, KL_Allocation* out) {
   assert(alignment > 0 && "Alignment must be positive.");
   assert((alignment & (alignment - 1)) == 0 && "Alignment must be a power of two.");
-  
-  int64_t offset = page->bytes_written;
+
   size_t total_size_needed = size + alignment - 1;
   bool fits = page_fits(page, total_size_needed);
   assert(fits == true);
@@ -296,12 +295,14 @@ static inline uint8_t* page_alloc_aligned(KL_Allocator* allocator, KL_AllocatorP
   uintptr_t aligned_ptr = (current_ptr + alignment - 1) & ~(alignment - 1);
   uint8_t padding = (uint8_t)(aligned_ptr - current_ptr);
 
-  //*(uint8_t*)(aligned_ptr) = padding;
   page->bytes_written += size + padding;
 
+  // Record the aligned offset and the user-requested size so that
+  // find_old_data / realloc see the actual user data region, not the
+  // padding bytes that precede it.
   KL_Allocation allocation = {0};
-  allocation.offset = offset;
-  allocation.size = size + padding;
+  allocation.offset = (int64_t)(aligned_ptr - (uintptr_t)page->data);
+  allocation.size = size;
   allocation.page = page->index;
   allocation.alignment = alignment;
 

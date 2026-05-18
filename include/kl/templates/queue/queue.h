@@ -1,21 +1,21 @@
 /*
 This file was automatically generated and must not be modified directly.
 
-Generated at: 2026-05-18 22:27:43
+Generated at: 2026-05-19 00:51:26
 */
 
 
-#include <stdint.h>
-#include <assert.h>
-#include <stdbool.h>
-#include <kl/templates/queue/shared.h>
-#include <kl/threads/mutex.h>
-#include <kl/templates/x__shared.h>
-#include <kl/memory/allocator.h>
-#include <kl/macros.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <kl/macros.h>
 #include <kl/templates/queue/dummy.h>
+#include <kl/templates/x__shared.h>
+#include <stdint.h>
+#include <kl/templates/queue/shared.h>
 #include <string.h>
+#include <kl/memory/allocator.h>
+#include <kl/threads/mutex.h>
+#include <assert.h>
 
 
 #define KL_DEFINE_QUEUE(NAME, T)                                                \

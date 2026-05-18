@@ -1,18 +1,18 @@
 /*
 This file was automatically generated and must not be modified directly.
 
-Generated at: 2026-05-18 22:27:43
+Generated at: 2026-05-19 00:51:26
 */
 
 
-#include <stdint.h>
-#include <assert.h>
+#include <kl/templates/sparse_set/dummy.h>
 #include <stdbool.h>
 #include <kl/templates/sparse_set/shared.h>
-#include <kl/templates/sparse_set/dummy.h>
 #include <kl/templates/x__shared.h>
-#include <kl/memory/allocator.h>
+#include <stdint.h>
 #include <string.h>
+#include <kl/memory/allocator.h>
+#include <assert.h>
 
 
 #define KL_DEFINE_SPARSE_SET(NAME, T)                                                    \
