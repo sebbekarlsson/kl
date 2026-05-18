@@ -27,6 +27,7 @@ typedef struct {
 #define KL_TEST_ASSERT(EXPR, MSG) do { if (!(EXPR)) { KL_TEST_PRINT_ASSERT_FAILURE(MSG); KL_TEST_FAILED(); } } while (0)
 
 #define KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B) "expected " KL_TEST_STR(A) " to be equal " KL_TEST_STR(B)
+#define KL_TEST_EXPECT_EXPR(EXPR) KL_TEST_ASSERT(EXPR, "expected " KL_TEST_STR(EXPR) " to be truthy")
 #define KL_TEST_EXPECT_EQ_INT(A, B) KL_TEST_ASSERT((A) == (B), KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B))
 
 #endif

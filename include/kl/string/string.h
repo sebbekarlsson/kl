@@ -25,6 +25,10 @@ bool kl_str_const_starts_with(KL_StrConst str, KL_StrConst sub);
 
 bool kl_str_const_ends_with(KL_StrConst str, KL_StrConst sub);
 
+bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub);
+
+KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length);
+
 KL_StrConst kl_str_const_remove_prefix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub);
