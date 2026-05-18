@@ -12,7 +12,7 @@ static void kl_NAME_sparse_set_ensure_alloc(KL_NAME_SparseSet* set) {
   set->values = (T_X*)kl_allocator_malloc_tracked_aligned(alloc, set->dense_capacity * (int64_t)sizeof(T_X), _Alignof(T_X), &set->_values_ref);
 }
 
-void kl_NAME_sparseset_init(KL_NAME_SparseSet* set, KL_SparseSetConfig cfg) {
+void kl_NAME_sparse_set_init(KL_NAME_SparseSet* set, KL_SparseSetConfig cfg) {
   if (set->initialized) return;
   assert(cfg.sparse_capacity > 0);
   assert(cfg.dense_capacity > 0);

@@ -1,19 +1,19 @@
 /*
 This file was automatically generated and must not be modified directly.
 
-Generated at: 2026-05-18 21:45:36
+Generated at: 2026-05-18 22:27:43
 */
 
 
-#include <stdlib.h>
-#include <kl/memory/allocator.h>
-#include <stdbool.h>
-#include <kl/templates/x__shared.h>
-#include <assert.h>
 #include <stdint.h>
-#include <kl/threads/mutex.h>
+#include <assert.h>
+#include <stdbool.h>
 #include <kl/templates/queue/shared.h>
+#include <kl/threads/mutex.h>
+#include <kl/templates/x__shared.h>
+#include <kl/memory/allocator.h>
 #include <kl/macros.h>
+#include <stdlib.h>
 #include <kl/templates/queue/dummy.h>
 #include <string.h>
 

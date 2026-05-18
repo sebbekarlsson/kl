@@ -185,3 +185,13 @@ if __name__ == '__main__':
         typename='bool',
         name='bool'
     )
+
+
+    # sparse_set
+    generate(
+        before_head=f'#define {PREFIX}DEFINE_SPARSE_SET(NAME, T)\n',
+        header_path=f'./include/{NAME}/templates/sparse_set/dummy.h',
+        before_impl=f'#define {PREFIX}IMPL_SPARSE_SET(NAME, T)\n',
+        impl_path='./src/templates/sparse_set/dummy.c',
+        outpath=f'./include/{NAME}/templates/sparse_set/sparse_set.h'
+    )
