@@ -245,11 +245,14 @@ static inline uint8_t* find_old_data(KL_Allocator* allocator, KL_Allocation* all
 static inline uint8_t* reuse_allocation(KL_Allocator* allocator, KL_AllocatorPage* page, int64_t allocation_index, KL_Allocation* out) {
   assert(allocation_index < allocator->allocations.length);
   assert(allocator->allocations.items != 0);
-  KL_Allocation allocation = allocator->allocations.items[allocation_index];
-  assert(allocation.offset >= 0);
-  assert(allocation.offset < page->size);
+  KL_Allocation* slot = &allocator->allocations.items[allocation_index];
+  assert(slot->offset >= 0);
+  assert(slot->offset < page->size);
+  KL_Allocation allocation = *slot;
   uint8_t* data = &page->data[allocation.offset];
-  remove_allocation(allocator, allocation);
+  // Resurrect the slot in place so kl_allocator_free_allocation can find it
+  // again. Removing the entry on reuse would leave the live region untracked.
+  slot->freed = false;
   allocator->allocations.n_freed -= 1;
   if (out != 0) {
     *out = allocation;
@@ -360,32 +363,39 @@ uint8_t* kl_allocator_malloc_tracked_aligned(KL_Allocator* allocator, int64_t si
 
 static inline uint8_t* generic_realloc(KL_Allocator* allocator, int64_t new_size, size_t alignment, KL_Allocation* allocation) {
   assert(allocator->initialized == true);
-  
-  if (allocation->size <= 0) return generic_malloc(allocator, new_size, alignment, true, allocation);
-  
+
+  if (allocation->size <= 0) return generic_malloc(allocator, new_size, alignment, false, allocation);
+
   kl_mutex_lock(&allocator->lock);
   assert(allocator->initialized == true);
-  assert(allocator->config.track_allocations == false); // realloc not supported if this is true
-  
   assert(new_size > 0);
 
   int64_t old_size = allocation->size;
-  uint8_t* old_data = (allocation->size > 0) ? find_old_data(allocator, allocation) : 0;
+  KL_Allocation old_allocation = *allocation;
+  uint8_t* old_data = find_old_data(allocator, allocation);
 
   if (new_size <= allocation->size) {
     kl_mutex_unlock(&allocator->lock);
     return old_data;
   }
-  
-  uint8_t* data = generic_malloc(allocator, new_size, alignment, true, allocation);
+
+  uint8_t* data = generic_malloc(allocator, new_size, alignment, false, allocation);
   assert(data != 0);
 
-  if (old_data != 0 && data != 0 && allocation->size > 0) {
+  if (old_data != 0 && data != 0 && old_size > 0) {
     memcpy(&data[0], &old_data[0], old_size);
   }
-  
+
+  // Return the old region to the freed pool so its space is reclaimable. Done
+  // after the memcpy because free_allocation zeros the freed bytes.
+  if (allocator->config.track_allocations) {
+    if (free_allocation(allocator, old_allocation) == 1) {
+      allocator->allocations.n_freed += 1;
+    }
+  }
+
   kl_mutex_unlock(&allocator->lock);
-  
+
   return data;
 }
 
