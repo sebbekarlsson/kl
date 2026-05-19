@@ -1,22 +1,22 @@
 /*
 This file was automatically generated and must not be modified directly.
 
-Generated at: 2026-05-19 00:51:26
+Generated at: 2026-05-19 01:06:52
 */
 
 
-#include <stdlib.h>
-#include <stdbool.h>
+#include <kl/memory/alloc.h>
+#include <assert.h>
 #include <kl/macros.h>
 #include <kl/templates/list/shared.h>
-#include <stdalign.h>
-#include <kl/memory/alloc.h>
-#include <kl/templates/list/dummy.h>
 #include <kl/templates/x__shared.h>
+#include <stdlib.h>
+#include <stdalign.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
+#include <kl/templates/list/dummy.h>
 #include <kl/memory/allocator.h>
-#include <assert.h>
 
 
 #define KL_DEFINE_LIST(NAME, T)                                              \

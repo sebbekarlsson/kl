@@ -1,25 +1,25 @@
 /*
 This file was automatically generated and must not be modified directly.
 
-Generated at: 2026-05-19 00:51:26
+Generated at: 2026-05-19 01:06:52
 */
 
 
+#include <assert.h>
 #include <kl/templates/hashmap/dummy.h>
-#include <stdlib.h>
-#include <kl/templates/hashmap/shared.h>
 #include <stdbool.h>
-#include <kl/templates/list/blob_ptr_list.h>
+#include <kl/templates/hashmap/shared.h>
 #include <kl/binary/blob.h>
 #include <kl/templates/x__shared.h>
-#include <kl/templates/list/int64_list.h>
-#include <stdint.h>
-#include <pthread.h>
-#include <string.h>
-#include <kl/memory/allocator.h>
-#include <kl/templates/list/list.h>
 #include <stdio.h>
-#include <assert.h>
+#include <stdlib.h>
+#include <kl/templates/list/blob_ptr_list.h>
+#include <kl/templates/list/int64_list.h>
+#include <kl/templates/list/list.h>
+#include <stdint.h>
+#include <string.h>
+#include <pthread.h>
+#include <kl/memory/allocator.h>
 
 
 #define KL_DEFINE_HASHMAP(NAME, T)                                                                       \
