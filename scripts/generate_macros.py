@@ -1,7 +1,6 @@
 from contextlib import closing
 import re
 from textwrap import indent
-import datetime
 import os
 
 NAME: str = 'kl'
@@ -66,11 +65,8 @@ def generate(before_head: str, header_path: str, before_impl: str, impl_path: st
     impl = strip(impl)
 
 
-    now = datetime.datetime.now()
     comments: list[str] = [
         'This file was automatically generated and must not be modified directly.',
-        '',
-        f'Generated at: {now.strftime("%Y-%m-%d %H:%M:%S")}'
     ]
     comment = '/*\n' +  '\n'.join(comments) + '\n*/'
     
