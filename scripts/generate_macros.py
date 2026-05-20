@@ -61,7 +61,7 @@ def generate(before_head: str, header_path: str, before_impl: str, impl_path: st
     
     header, includes0, tops0 = process(header_path)
     impl, includes1, _tops1 = process(impl_path)
-    all_includes = list(set([*includes0, *includes1]))
+    all_includes = list(dict.fromkeys([*includes0, *includes1]))
     header = strip(header)
     impl = strip(impl)
 
