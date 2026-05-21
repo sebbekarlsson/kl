@@ -1,0 +1,27 @@
+#ifndef KL_JSON_TOKEN_H
+#define KL_JSON_TOKEN_H
+
+#include <kl/string/string.h>
+
+typedef enum {
+  KL_JSON_TOKEN_NONE,
+  KL_JSON_TOKEN_STRING,
+  KL_JSON_TOKEN_NUMBER,
+  KL_JSON_TOKEN_TRUE,
+  KL_JSON_TOKEN_FALSE,
+  KL_JSON_TOKEN_NULL,
+  KL_JSON_TOKEN_OBJECT_BEGIN, // {
+  KL_JSON_TOKEN_OBJECT_END,   // }
+  KL_JSON_TOKEN_ARRAY_BEGIN,  // [
+  KL_JSON_TOKEN_ARRAY_END,    // ]
+  KL_JSON_TOKEN_SEPARATOR,    // ,
+  KL_JSON_TOKEN_DESCRIPTOR,   // :
+  KL_JSON_TOKEN_TOKENIZER_ERROR
+} KL_JSONTokenType;
+
+typedef struct {
+  KL_JSONTokenType type;
+  KL_StrBuffer buffer;
+} KL_JSONToken;
+
+#endif

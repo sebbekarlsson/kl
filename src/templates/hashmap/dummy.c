@@ -409,7 +409,16 @@ void kl_NAME_hashmap_serialize_to_file(KL_NAME_Hashmap map, FILE* fp) {
   uint32_t magic = KL_HASHMAP_MAGIC__SHARED;
   fwrite(&magic, sizeof(uint32_t), 1, fp);
 
-  fwrite(&map.config, sizeof(KL_HashmapConfig), 1, fp);
+  /* Route the config through a zeroed struct before writing: an fwrite of the
+     raw struct would otherwise emit its uninitialised trailing padding (the
+     bytes after `track_used_slots`) into the file. */
+  KL_HashmapConfig config_out;
+  memset(&config_out, 0, sizeof(config_out));
+  config_out.capacity = map.config.capacity;
+  config_out.collision_capacity = map.config.collision_capacity;
+  config_out.max_key_size = map.config.max_key_size;
+  config_out.track_used_slots = map.config.track_used_slots;
+  fwrite(&config_out, sizeof(KL_HashmapConfig), 1, fp);
   int64_t len = map.slots.length;
   fwrite(&len, sizeof(int64_t), 1, fp);
   if (map.slots.items != 0 && map.slots.length > 0) {

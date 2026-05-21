@@ -5,6 +5,7 @@
 #include <test/framework.h>
 #include <kl/macros.h>
 #include <kl/string/string.h>
+#include <kl/string/scanner.h>
 #include <kl/memory/allocator.h>
 #include <kl/templates/list/int64_list.h>
 #include <kl/templates/list/blob_ptr_list.h>
@@ -12,7 +13,10 @@
 #include <kl/templates/sparse_set/binary_sparse_set.h>
 #include <kl/binary/blob.h>
 #include <kl/io/fs.h>
+#include <kl/json/tokenizer.h>
+#include <kl/path/path.h>
 #include <unistd.h>
+#include <limits.h>
 
 static KL_StrConst get_arg(int argc, char* argv[], KL_StrConst key, bool required) {
   KL_StrConst ckey = kl_str_const_remove_prefix(key, KL_STR_CONST_LIT("--"));
@@ -2594,9 +2598,369 @@ static void test_fs_read_directory_recursive_descends_into_subdirs() {
   kl_allocator_destroy(&a);
 }
 
+static void test_str_scanner(KL_TestFunctionContext* ctx) {
+
+  KL_TEST_IT(ctx, "advances correctly");
+  {
+    KL_StrScanner scanner = {0};
+    kl_str_scanner_init(&scanner, KL_STR_CONST_LIT("abc123"));
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, 'a');
+    kl_str_scanner_advance(&scanner, 1);
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, 'b');
+    kl_str_scanner_advance(&scanner, 1);
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, 'c');
+    kl_str_scanner_advance(&scanner, 1);
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, '1');
+    kl_str_scanner_advance(&scanner, 1);
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, '2');
+    KL_TEST_EXPECT_EXPR(kl_str_scanner_is_eof(&scanner) == false);
+    KL_TEST_EXPECT_EXPR(kl_str_scanner_has_more(&scanner) == true);
+    kl_str_scanner_advance(&scanner, 1);
+    KL_TEST_EXPECT_EXPR(kl_str_scanner_has_more(&scanner) == true);
+    KL_TEST_EXPECT_EQ_CHAR(scanner.c, '3');
+    KL_TEST_EXPECT_EXPR(kl_str_scanner_is_eof(&scanner) == true);
+    
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_json_tokenizer(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "produces the correct tokens for a simple object");
+  {
+    KL_StrScanner scanner = {0};
+    kl_str_scanner_init(&scanner, KL_STR_CONST_LIT("{\"hello\": 1 }"));
+
+    KL_JSONToken tok = {0};
+    char tokbuf[512] = {0};
+    tok.buffer.data = tokbuf;
+    tok.buffer.capacity = 512-1;
+
+    bool ok = false;
+    
+    ok = kl_json_tokenize_next(&scanner, &tok);
+    KL_TEST_EXPECT_EXPR(ok == true);
+    KL_TEST_EXPECT_EXPR(tok.type == KL_JSON_TOKEN_OBJECT_BEGIN);
+
+    ok = kl_json_tokenize_next(&scanner, &tok);
+    KL_TEST_EXPECT_EXPR(ok == true);
+    KL_TEST_EXPECT_EXPR(tok.type == KL_JSON_TOKEN_STRING);
+
+    ok = kl_json_tokenize_next(&scanner, &tok);
+    KL_TEST_EXPECT_EXPR(ok == true);
+    KL_TEST_EXPECT_EXPR(tok.type == KL_JSON_TOKEN_DESCRIPTOR);
+
+    ok = kl_json_tokenize_next(&scanner, &tok);
+    KL_TEST_EXPECT_EXPR(ok == true);
+    KL_TEST_EXPECT_EXPR(tok.type == KL_JSON_TOKEN_NUMBER);
+
+    ok = kl_json_tokenize_next(&scanner, &tok);
+    KL_TEST_EXPECT_EXPR(ok == true);
+    KL_TEST_EXPECT_EXPR(tok.type == KL_JSON_TOKEN_OBJECT_END);
+    
+  }
+  KL_TEST_IT_END(ctx);
+
+
+  KL_TEST_IT(ctx, "produces sensible tokens for a 256KB json file");
+  {
+    KL_StrBuffer resolved_path = KL_STR_BUFFER_STACK_ALLOC(PATH_MAX);
+    KL_StrBuffer cwd_buff = KL_STR_BUFFER_STACK_ALLOC(PATH_MAX);
+    kl_path_cwd(&cwd_buff);
+
+    
+    bool did_resolve = KL_PATH_RESOLVE(&resolved_path, KL_STR_CONST(__FILE__), KL_STR_CONST_LIT("../../data/json/256KB.json"));
+
+    KL_TEST_EXPECT_EXPR(did_resolve == true);
+    KL_StrScanner scanner = {0};
+
+    KL_Str file_contents = {0};
+    printf("PATH: %s\n", resolved_path.data);
+    bool file_ok = kl_fs_read_text_file((KL_StrConst){ .value = resolved_path.data, .length = resolved_path.length }, &file_contents);
+    KL_TEST_EXPECT_EXPR(file_ok == true);
+    assert(file_contents.value != 0);
+    assert(file_contents.length > 0);
+    
+    kl_str_scanner_init(&scanner, (KL_StrConst){ .value = file_contents.value, .length = file_contents.length });
+
+    // re-use this buffer
+    kl_str_buffer_clear(&resolved_path);
+    KL_JSONToken tok = {0};
+    tok.buffer = resolved_path;
+
+    int64_t count = 0;
+    while (kl_json_tokenize_next(&scanner, &tok)) {
+      count++;
+    }
+
+    KL_TEST_EXPECT_EQ_INT(count, 17425);
+
+    if (tok.type == KL_JSON_TOKEN_TOKENIZER_ERROR) {
+      fprintf(stderr, "%s\n", tok.buffer.data);
+    }
+
+    KL_TEST_EXPECT_EXPR(tok.type != KL_JSON_TOKEN_TOKENIZER_ERROR);
+
+    free(file_contents.value);
+  }
+  KL_TEST_IT_END(ctx);
+  //exit(1);
+}
+
+/* ---- path module test helpers ---- */
+
+static KL_StrConst path_buf_view(const KL_StrBuffer* b) {
+  return (KL_StrConst){.value = b->data, .length = b->length};
+}
+
+static void expect_path(KL_StrConst got, const char* expected) {
+  int64_t exp_len = (int64_t)strlen(expected);
+  bool eq;
+  if (exp_len == 0) {
+    eq = got.length == 0;
+  } else {
+    eq = got.length == exp_len && got.value != 0 &&
+         memcmp(got.value, expected, (size_t)exp_len) == 0;
+  }
+  if (!eq) {
+    fprintf(stderr, "[path test] expected \"%s\" but got \"%.*s\"\n",
+            expected, (int)got.length, got.value != 0 ? got.value : "");
+    KL_TEST_FAILED();
+  }
+}
+
+static void expect_normalize(KL_StrBuffer* buf, const char* in, const char* out) {
+  KL_TEST_ASSERT(kl_path_normalize(buf, KL_STR_CONST(in)) == true, "normalize unexpectedly failed");
+  expect_path(path_buf_view(buf), out);
+}
+
+static void test_path_is_absolute(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "detects absolute vs relative paths");
+  {
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT("")) == false);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT("/")) == true);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT("/foo")) == true);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT("foo")) == false);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT("./foo")) == false);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(KL_STR_CONST_LIT(".")) == false);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute((KL_StrConst){0}) == false);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_dirname(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "returns the directory portion of a path");
+  {
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("")), ".");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("/")), "/");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("foo")), ".");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("foo/bar")), "foo");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("/foo/bar")), "/foo");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("/foo/bar/")), "/foo");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("/foo")), "/");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("a//b")), "a/");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT("foo/..")), "foo");
+    expect_path(kl_path_dirname(KL_STR_CONST_LIT(".hidden")), ".");
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_basename(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "returns the last component of a path");
+  {
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("")), "");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("/")), "");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("/foo/bar")), "bar");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("/foo/bar/")), "bar");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("foo")), "foo");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("a//b//")), "b");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("..")), "..");
+    expect_path(kl_path_basename(KL_STR_CONST_LIT("index.tar.gz")), "index.tar.gz");
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_extname(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "returns the extension of a path");
+  {
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("index.html")), ".html");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("index.")), ".");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("index")), "");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT(".hidden")), "");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("index.tar.gz")), ".gz");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("/p/to/f.txt")), ".txt");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("a/b/.gitignore")), "");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("..")), "");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("...txt")), ".txt");
+    expect_path(kl_path_extname(KL_STR_CONST_LIT("noext/")), "");
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_join(KL_TestFunctionContext* ctx) {
+  char data[1024];
+  KL_StrBuffer buf = {.data = data, .length = 0, .capacity = sizeof(data)};
+
+  KL_TEST_IT(ctx, "joins and normalizes path segments");
+  {
+    KL_TEST_EXPECT_EXPR(kl_path_join(&buf, NULL, 0) == true);
+    expect_path(path_buf_view(&buf), ".");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT(""), KL_STR_CONST_LIT("")) == true);
+    expect_path(path_buf_view(&buf), ".");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("bar")) == true);
+    expect_path(path_buf_view(&buf), "foo/bar");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("/bar")) == true);
+    expect_path(path_buf_view(&buf), "foo/bar");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT(""), KL_STR_CONST_LIT("/foo")) == true);
+    expect_path(path_buf_view(&buf), "/foo");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("/"), KL_STR_CONST_LIT("foo")) == true);
+    expect_path(path_buf_view(&buf), "/foo");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("bar/")) == true);
+    expect_path(path_buf_view(&buf), "foo/bar/");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT(".."), KL_STR_CONST_LIT("bar")) == true);
+    expect_path(path_buf_view(&buf), "bar");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("bar"), KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "foo");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("../../bar")) == true);
+    expect_path(path_buf_view(&buf), "../bar");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("/foo"), KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "/");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("a//b"), KL_STR_CONST_LIT("c")) == true);
+    expect_path(path_buf_view(&buf), "a/b/c");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT(".."), KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "../..");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&buf, KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("bar/"), KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "foo");
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "reports capacity overflow");
+  {
+    char small[4];
+    KL_StrBuffer sb = {.data = small, .length = 0, .capacity = sizeof(small)};
+    KL_TEST_EXPECT_EXPR(KL_PATH_JOIN(&sb, KL_STR_CONST_LIT("aaaa"), KL_STR_CONST_LIT("bbbb")) == false);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_normalize(KL_TestFunctionContext* ctx) {
+  char data[1024];
+  KL_StrBuffer buf = {.data = data, .length = 0, .capacity = sizeof(data)};
+
+  KL_TEST_IT(ctx, "collapses '.', '..' and duplicate separators");
+  {
+    expect_normalize(&buf, "", ".");
+    expect_normalize(&buf, ".", ".");
+    expect_normalize(&buf, "..", "..");
+    expect_normalize(&buf, "/", "/");
+    expect_normalize(&buf, "//", "/");
+    expect_normalize(&buf, "foo/", "foo/");
+    expect_normalize(&buf, "a//b//c", "a/b/c");
+    expect_normalize(&buf, "foo/./bar", "foo/bar");
+    expect_normalize(&buf, "foo/../bar", "bar");
+    expect_normalize(&buf, "/foo/../bar", "/bar");
+    expect_normalize(&buf, "foo/bar/..", "foo");
+    expect_normalize(&buf, "foo/bar/../", "foo/");
+    expect_normalize(&buf, "a/..", ".");
+    expect_normalize(&buf, "a/../", "./");
+    expect_normalize(&buf, "foo/bar/../../", "./");
+    expect_normalize(&buf, "/..", "/");
+    expect_normalize(&buf, "/../foo", "/foo");
+    expect_normalize(&buf, "../../foo", "../../foo");
+    expect_normalize(&buf, "foo/../../bar", "../bar");
+    expect_normalize(&buf, "a/b/../../../..", "../..");
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_resolve(KL_TestFunctionContext* ctx) {
+  char data[1024];
+  KL_StrBuffer buf = {.data = data, .length = 0, .capacity = sizeof(data)};
+  KL_StrConst cwd = KL_STR_CONST_LIT("/home/user");
+
+  KL_TEST_IT(ctx, "resolves parts against an absolute cwd");
+  {
+    KL_TEST_EXPECT_EXPR(kl_path_resolve(&buf, cwd, NULL, 0) == true);
+    expect_path(path_buf_view(&buf), "/home/user");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("foo")) == true);
+    expect_path(path_buf_view(&buf), "/home/user/foo");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/foo")) == true);
+    expect_path(path_buf_view(&buf), "/foo");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/foo"), KL_STR_CONST_LIT("/bar"), KL_STR_CONST_LIT("baz")) == true);
+    expect_path(path_buf_view(&buf), "/bar/baz");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/foo"), KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "/");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/foo/bar"), KL_STR_CONST_LIT("../baz")) == true);
+    expect_path(path_buf_view(&buf), "/foo/baz");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/foo/bar/")) == true);
+    expect_path(path_buf_view(&buf), "/foo/bar");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("..")) == true);
+    expect_path(path_buf_view(&buf), "/home");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("../../..")) == true);
+    expect_path(path_buf_view(&buf), "/");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT("/a"), KL_STR_CONST_LIT(""), KL_STR_CONST_LIT("/b")) == true);
+    expect_path(path_buf_view(&buf), "/b");
+
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, cwd, KL_STR_CONST_LIT(".")) == true);
+    expect_path(path_buf_view(&buf), "/home/user");
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "fails when neither cwd nor any part is absolute");
+  {
+    KL_TEST_EXPECT_EXPR(KL_PATH_RESOLVE(&buf, KL_STR_CONST_LIT("relative"), KL_STR_CONST_LIT("foo")) == false);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+static void test_path_cwd(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "fills the buffer with an absolute working directory");
+  {
+    char data[4096];
+    KL_StrBuffer buf = {.data = data, .length = 0, .capacity = sizeof(data)};
+    KL_TEST_EXPECT_EXPR(kl_path_cwd(&buf) == true);
+    KL_TEST_EXPECT_EXPR(buf.length > 0);
+    KL_TEST_EXPECT_EXPR(kl_path_is_absolute(path_buf_view(&buf)) == true);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "fails for an undersized or empty buffer");
+  {
+    char tiny[1];
+    KL_StrBuffer small = {.data = tiny, .length = 0, .capacity = sizeof(tiny)};
+    KL_TEST_EXPECT_EXPR(kl_path_cwd(&small) == false);
+
+    KL_StrBuffer none = {0};
+    KL_TEST_EXPECT_EXPR(kl_path_cwd(&none) == false);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
 static void run_test(KL_TestEntry* entry) {
   KL_TEST_BEGIN(entry->name);
-  entry->fn();
+  KL_TestFunctionContext ctx = {0};
+  entry->fn(&ctx);
   KL_TEST_END(entry->name);
 }
 
@@ -2604,6 +2968,9 @@ int main(int argc, char* argv[]) {
   KL_TestEntry tests[] = {
     KL_TEST_ENTRY(test_str_const_slice),
     KL_TEST_ENTRY(test_str_const_includes),
+    KL_TEST_ENTRY(test_str_scanner),
+    
+    KL_TEST_ENTRY(test_json_tokenizer),
     
     KL_TEST_ENTRY(test_allocator_init_destroy),
     KL_TEST_ENTRY(test_allocator_double_init_is_noop),
@@ -2733,6 +3100,15 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_fs_read_directory_rejects_bad_args),
     KL_TEST_ENTRY(test_fs_read_directory_lists_project_src_non_recursive),
     KL_TEST_ENTRY(test_fs_read_directory_recursive_descends_into_subdirs),
+
+    KL_TEST_ENTRY(test_path_is_absolute),
+    KL_TEST_ENTRY(test_path_dirname),
+    KL_TEST_ENTRY(test_path_basename),
+    KL_TEST_ENTRY(test_path_extname),
+    KL_TEST_ENTRY(test_path_join),
+    KL_TEST_ENTRY(test_path_normalize),
+    KL_TEST_ENTRY(test_path_resolve),
+    KL_TEST_ENTRY(test_path_cwd),
   };
 
   int64_t n_tests = KL_ARRAY_LEN(tests);
@@ -2740,20 +3116,25 @@ int main(int argc, char* argv[]) {
   KL_StrConst test_to_run = get_arg(argc, argv, KL_STR_CONST_LIT("--test"), false);
 
   if (test_to_run.value != 0) {
+    bool found = false;
     for (int64_t i = 0; i < n_tests; i++) {
       KL_TestEntry* entry = &tests[i];
       if (kl_str_const_eq(test_to_run, KL_STR_CONST(entry->name))) {
         run_test(entry);
+        found = true;
         break;
       }
     }
-    fprintf(stderr, "No such test: '%s'\n", test_to_run.value);
-    exit(1);
+    if (!found) {
+      fprintf(stderr, "No such test: '%s'\n", test_to_run.value);
+      exit(1);
+    }
   } else {
     for (int64_t i = 0; i < n_tests; i++) {
       KL_TestEntry* entry = &tests[i];
       run_test(entry);
     }
+    printf("Finished all tests, ran %ld tests in total.\n", n_tests);
   }
 
 

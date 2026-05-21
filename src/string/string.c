@@ -82,6 +82,9 @@ bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c) {
   int64_t avail = kl_str_buffer_avail(buff);
   if (avail <= 0) return false;
   buff->data[buff->length++] = c;
+  /* Keep the buffer NUL-terminated. `capacity` excludes the terminator slot,
+     so data[length] (length <= capacity) is always in bounds. */
+  buff->data[buff->length] = '\0';
   return true;
 }
 

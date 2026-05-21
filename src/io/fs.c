@@ -12,6 +12,33 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+bool kl_fs_read_text_file(KL_StrConst filepath, KL_Str* out) {
+  assert(filepath.value != 0);
+  assert(filepath.length > 0);
+  assert(out != 0);
+  
+  FILE* fp = fopen(filepath.value, "r");
+  if (fp == 0) return false;
+
+  int64_t len = 0;
+  fseek(fp, 0, SEEK_END);
+  len = ftell(fp);
+  rewind(fp);
+
+  char* buff = (char*)calloc(len + 1, sizeof(char));
+  assert(buff != 0);
+  fread(&buff[0], sizeof(char), len, fp);
+
+  fclose(fp);
+  fp = 0;
+
+
+  out->value = buff;
+  out->length = len;
+  
+  return true;
+}
+
 bool kl_fs_file_exists(const char *filepath) {
   if (filepath == 0)
     return false;

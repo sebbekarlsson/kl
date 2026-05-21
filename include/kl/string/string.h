@@ -39,6 +39,8 @@ typedef struct {
   int64_t capacity;
 } KL_StrBuffer;
 
+#define KL_STR_BUFFER_STACK_ALLOC(CAPACITY) ((KL_StrBuffer){ .data = (char*)alloca(CAPACITY), .length = 0, .capacity = (CAPACITY) - 1 })
+
 int64_t kl_str_buffer_avail(const KL_StrBuffer* buff);
 bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c);
 bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content);
