@@ -457,8 +457,6 @@ int kl_NAME_hashmap_deserialize_from_file(KL_NAME_Hashmap* map, FILE* fp) {
   fread(&magic, sizeof(uint32_t), 1, fp);
 
   if (magic != KL_HASHMAP_MAGIC__SHARED) {
-    fprintf(stderr, "Invalid magic: 0x%08X (expected 0x%08X). Old format files are no longer supported.\n",
-            magic, KL_HASHMAP_MAGIC__SHARED);
     return 0;
   }
 

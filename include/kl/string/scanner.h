@@ -25,6 +25,15 @@ bool kl_str_scanner_is_eof(KL_StrScanner* scanner);
 **/
 bool kl_str_scanner_has_more(KL_StrScanner* scanner);
 
+
+bool kl_str_scanner_eat_char(KL_StrScanner* scanner, char c);
+
+bool kl_str_scanner_eat_until_char(KL_StrScanner* scanner, char c, KL_StrBuffer* out);
+
+bool kl_str_scanner_eat_integer(KL_StrScanner* scanner, KL_StrBuffer* out);
+
+bool kl_str_scanner_eat_alpha(KL_StrScanner* scanner, KL_StrBuffer* out);
+
 /**
 * @brief mutates the state
 **/

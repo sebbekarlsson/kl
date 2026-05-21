@@ -9,7 +9,8 @@
 
 typedef enum {
   KL_JSON_NODE_STRING,
-  KL_JSON_NODE_NUMBER,
+  KL_JSON_NODE_INT,
+  KL_JSON_NODE_FLOAT,
   KL_JSON_NODE_BOOLEAN,
   KL_JSON_NODE_NULL,
   KL_JSON_NODE_OBJECT,
@@ -28,7 +29,8 @@ struct KL_JSONNode {
 
   union {
     KL_StrConst string;
-    double number;
+    double number_float;
+    int64_t number_int;
     bool boolean;
     KL_json_node_ptr_List array;
     KL_json_node_ptr_Hashmap object;
@@ -38,5 +40,12 @@ struct KL_JSONNode {
 
 bool kl_json_node_stringify(const KL_JSONNode* node, KL_StrBuffer* out);
 
+double kl_json_node_as_float(const KL_JSONNode* node);
+
+int64_t kl_json_node_as_int(const KL_JSONNode* node);
+
+bool kl_json_node_as_boolean(const KL_JSONNode* node);
+
+KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path);
 
 #endif

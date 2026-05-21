@@ -4,6 +4,8 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <kl/binary/blob.h>
+#include <kl/memory/allocator.h>
 
 typedef struct {
   const char* value;
@@ -19,6 +21,8 @@ typedef struct {
 #define KL_STR_CONST(VALUE) ((KL_StrConst){ .value = VALUE, .length = strlen(VALUE) })
 #define KL_STR_CONST_LIT(VALUE) ((KL_StrConst){ .value = VALUE, .length = sizeof(VALUE) - 1 })
 
+#define KL_STR_CONST_TO_BLOB(STR) ((KL_Blob){ .value = (uint8_t*)(STR).value, .size = (STR).length })
+
 bool kl_str_const_eq(KL_StrConst a, KL_StrConst b);
 
 bool kl_str_const_starts_with(KL_StrConst str, KL_StrConst sub);
@@ -26,6 +30,8 @@ bool kl_str_const_starts_with(KL_StrConst str, KL_StrConst sub);
 bool kl_str_const_ends_with(KL_StrConst str, KL_StrConst sub);
 
 bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub);
+
+bool kl_str_const_is_integer(KL_StrConst str);
 
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length);
 
@@ -37,6 +43,16 @@ typedef struct {
   char* data;
   int64_t length;
   int64_t capacity;
+  int64_t bump_size;
+
+  /**
+  * @brief used if allocator is set
+  **/
+  KL_Allocation allocation;
+  /**
+  * @brief allocator is optional
+  **/
+  KL_Allocator* allocator;
 } KL_StrBuffer;
 
 #define KL_STR_BUFFER_STACK_ALLOC(CAPACITY) ((KL_StrBuffer){ .data = (char*)alloca(CAPACITY), .length = 0, .capacity = (CAPACITY) - 1 })

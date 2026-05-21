@@ -454,8 +454,6 @@ This file was automatically generated and must not be modified directly.
     uint32_t magic = 0;                                                                                                                                                                                 \
     fread(&magic, sizeof(uint32_t), 1, fp);                                                                                                                                                             \
     if (magic != KL_HASHMAP_MAGIC__SHARED) {                                                                                                                                                            \
-      fprintf(stderr, "Invalid magic: 0x%08X (expected 0x%08X). Old format files are no longer supported.\n",                                                                                           \
-              magic, KL_HASHMAP_MAGIC__SHARED);                                                                                                                                                         \
       return 0;                                                                                                                                                                                         \
     }                                                                                                                                                                                                   \
     fread(&map->config, sizeof(KL_HashmapConfig), 1, fp);                                                                                                                                               \

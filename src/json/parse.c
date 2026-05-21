@@ -83,12 +83,20 @@ static KL_JSONNode* parse_obj_member(KL_JSONParser* parser, KL_JSONNode* obj) {
 static KL_JSONNode* parse(KL_JSONParser* parser) {
   switch (parser->token.type) {
     case KL_JSON_TOKEN_STRING: return parse_string(parser); 
-    case KL_JSON_TOKEN_NUMBER: {
-      KL_JSONNode* node = create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_NUMBER });
+    case KL_JSON_TOKEN_INT: {
+      KL_JSONNode* node = create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_INT });
       if (parser->token.buffer.length > 0) {
-        node->as.number = atof(parser->token.buffer.data);  
+        node->as.number_int = (int64_t)atoll(parser->token.buffer.data);  
       }
-      eat(parser, KL_JSON_TOKEN_NUMBER);
+      eat(parser, KL_JSON_TOKEN_INT);
+      return node;
+    };
+    case KL_JSON_TOKEN_FLOAT: {
+      KL_JSONNode* node = create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_FLOAT });
+      if (parser->token.buffer.length > 0) {
+        node->as.number_float = atof(parser->token.buffer.data);  
+      }
+      eat(parser, KL_JSON_TOKEN_FLOAT);
       return node;
     };
     case KL_JSON_TOKEN_FALSE:

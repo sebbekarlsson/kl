@@ -18,7 +18,7 @@ bool kl_json_tokenize_next(KL_StrScanner* scanner, KL_JSONToken* out) {
   kl_str_buffer_clear(&out->buffer);
 
   if (isdigit(scanner->c) || scanner->c == '-') {
-    out->type = KL_JSON_TOKEN_NUMBER;
+    out->type = KL_JSON_TOKEN_INT;
 
     // optional leading minus sign
     if (scanner->c == '-') {
@@ -34,6 +34,7 @@ bool kl_json_tokenize_next(KL_StrScanner* scanner, KL_JSONToken* out) {
 
     // optional fractional part
     if (!kl_str_scanner_is_eof(scanner) && scanner->c == '.') {
+      out->type = KL_JSON_TOKEN_FLOAT;
       kl_str_buffer_append_char(&out->buffer, scanner->c);
       kl_str_scanner_advance(scanner, 1);
       while (!kl_str_scanner_is_eof(scanner) && isdigit(scanner->c)) {

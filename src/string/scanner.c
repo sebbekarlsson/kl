@@ -1,6 +1,8 @@
 #include <kl/string/scanner.h>
 #include <kl/macros.h>
 #include <assert.h>
+#include <ctype.h>
+#include <stddef.h>
 
 
 bool kl_str_scanner_init(KL_StrScanner* scanner, KL_StrConst str) {
@@ -27,6 +29,56 @@ bool kl_str_scanner_has_more(KL_StrScanner* scanner) {
   return scanner->c != 0 &&
         scanner->i <= scanner->str.length &&
         scanner->str.value != 0;
+}
+
+bool kl_str_scanner_eat_char(KL_StrScanner* scanner, char c) {
+  assert(scanner->initialized);
+  if (scanner->c != c) return false;
+  kl_str_scanner_advance(scanner, 1);
+  return true;
+}
+
+bool kl_str_scanner_eat_until_char(KL_StrScanner* scanner, char c, KL_StrBuffer* out) {
+  assert(scanner->initialized);
+
+  while (kl_str_scanner_has_more(scanner) && scanner->c != c) {
+    if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+    kl_str_scanner_advance(scanner, 1);
+  }
+
+  return out->length > 0;
+}
+
+bool kl_str_scanner_eat_integer(KL_StrScanner* scanner, KL_StrBuffer* out) {
+  assert(scanner->initialized);
+
+  if (!isdigit(scanner->c)) return false;
+  if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+  
+  kl_str_scanner_advance(scanner, 1);
+   
+  while (kl_str_scanner_has_more(scanner) && isdigit(scanner->c)) {
+    if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+    kl_str_scanner_advance(scanner, 1);
+  }
+
+  return out->length > 0;
+}
+
+bool kl_str_scanner_eat_alpha(KL_StrScanner* scanner, KL_StrBuffer* out) {
+  assert(scanner->initialized);
+
+  if (!isalpha(scanner->c)) return false;
+  if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+  
+  kl_str_scanner_advance(scanner, 1);
+   
+  while (kl_str_scanner_has_more(scanner) && isalpha(scanner->c)) {
+    if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+    kl_str_scanner_advance(scanner, 1);
+  }
+
+  return out->length > 0;
 }
 
 bool kl_str_scanner_advance(KL_StrScanner* scanner, int64_t steps) {
