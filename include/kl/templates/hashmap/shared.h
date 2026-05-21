@@ -4,14 +4,22 @@
 #include <stdbool.h>
 /* v2: slot layout shrunk (intrusive single-link chain via `next`); collision
    slots no longer carry per-slot KL_int64_List next_ids and the redundant id
-   field is gone. Wire format breaks accordingly. */
-#define KL_HASHMAP_MAGIC__SHARED 0x3FA3CEC1
+   field is gone. Wire format breaks accordingly.
+   v3: max_key_size removed from KL_HashmapConfig — per-slot key buffers now
+   grow on demand, so keys are no longer length-capped. Config layout shrank. */
+#define KL_HASHMAP_MAGIC__SHARED 0x3FA3CEC2
+
+struct KL_ALLOCATOR_STRUCT;
 
 typedef struct {
   int64_t capacity;
   int64_t collision_capacity;
-  int64_t max_key_size;
   bool track_used_slots;
+
+  /**
+  * @brief allocator: optional
+  **/
+  struct KL_ALLOCATOR_STRUCT* allocator;
 } KL_HashmapConfig;
 
 typedef struct {

@@ -27,7 +27,7 @@ typedef struct {
   bool freed;
 } KL_Allocation;
 
-typedef struct {
+typedef struct KL_ALLOCATOR_STRUCT {
   KL_Mutex lock;
   bool initialized;
   KL_AllocatorConfig config;

@@ -14,6 +14,7 @@
 #include <kl/binary/blob.h>
 #include <kl/io/fs.h>
 #include <kl/json/tokenizer.h>
+#include <kl/json/parser.h>
 #include <kl/path/path.h>
 #include <unistd.h>
 #include <limits.h>
@@ -1291,7 +1292,6 @@ static KL_HashmapConfig kl_test_int64_hashmap_default_cfg(void) {
   return (KL_HashmapConfig){
     .capacity = 16,
     .collision_capacity = 16,
-    .max_key_size = sizeof(int64_t),
     .track_used_slots = false,
   };
 }
@@ -1612,17 +1612,19 @@ static void test_int64_hashmap_unset_in_collision_chain() {
 }
 
 static void test_int64_hashmap_string_keys_fnv_path() {
-  // max_key_size > sizeof(int64_t) forces the FNV-1a hashing path.
+  // Keys longer than sizeof(int64_t) bytes take the FNV-1a hashing path.
   KL_int64_Hashmap map = {0};
   KL_HashmapConfig cfg = (KL_HashmapConfig){
     .capacity = 16,
     .collision_capacity = 16,
-    .max_key_size = 32,
     .track_used_slots = false,
   };
   kl_int64_hashmap_init(&map, cfg);
 
-  const char* keys[] = { "alpha", "beta", "gamma", "delta", "epsilon", "zeta" };
+  const char* keys[] = {
+    "alpha_string_key", "beta_string_key", "gamma_string_key",
+    "delta_string_key", "epsilon_string_key", "zeta_string_key"
+  };
   int64_t values[] = { 1, 2, 3, 4, 5, 6 };
   size_t n = KL_ARRAY_LEN(keys);
 
@@ -1638,7 +1640,7 @@ static void test_int64_hashmap_string_keys_fnv_path() {
   }
 
   // A string that was never inserted is absent.
-  KL_Blob miss = { .value = (uint8_t*)"omega", .size = 5 };
+  KL_Blob miss = { .value = (uint8_t*)"omega_string_key", .size = 16 };
   KL_TEST_ASSERT(!kl_int64_hashmap_has(&map, miss), "uninserted string key missing");
 
   kl_int64_hashmap_destroy(&map);
@@ -1650,7 +1652,6 @@ static void test_int64_hashmap_keys_with_same_prefix_differ() {
   KL_HashmapConfig cfg = (KL_HashmapConfig){
     .capacity = 8,
     .collision_capacity = 8,
-    .max_key_size = 32,
     .track_used_slots = false,
   };
   kl_int64_hashmap_init(&map, cfg);
@@ -2706,6 +2707,60 @@ static void test_json_tokenizer(KL_TestFunctionContext* ctx) {
   //exit(1);
 }
 
+static void test_json_parser(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "parses a 256KB json file without errors");
+  {
+    KL_StrBuffer resolved_path = KL_STR_BUFFER_STACK_ALLOC(PATH_MAX);
+    KL_StrBuffer cwd_buff = KL_STR_BUFFER_STACK_ALLOC(PATH_MAX);
+    kl_path_cwd(&cwd_buff);
+
+    
+    bool did_resolve = KL_PATH_RESOLVE(&resolved_path, KL_STR_CONST(__FILE__), KL_STR_CONST_LIT("../../data/json/256KB.json"));
+
+    KL_TEST_EXPECT_EXPR(did_resolve == true);
+
+    KL_Str file_contents = {0};
+    bool file_ok = kl_fs_read_text_file((KL_StrConst){ .value = resolved_path.data, .length = resolved_path.length }, &file_contents);
+    KL_TEST_EXPECT_EXPR(file_ok == true);
+    assert(file_contents.value != 0);
+    assert(file_contents.length > 0);
+
+    KL_JSONParser parser = {0};
+    kl_json_parser_init(&parser);
+    KL_JSONNode* node = kl_json_parser_parse(&parser, (KL_StrConst){ .value = file_contents.value, .length = file_contents.length });
+    //kl_str_scanner_init(&scanner, (KL_StrConst){ .value = file_contents.value, .length = file_contents.length });
+
+
+    KL_TEST_EXPECT_EXPR(node != 0);
+
+    if (node->type == KL_JSON_NODE_PARSER_ERROR) {
+      printf("--> %c\n", parser.scanner.c);
+    }
+    
+    KL_TEST_EXPECT_EXPR(node->type != KL_JSON_NODE_PARSER_ERROR);
+    KL_TEST_EXPECT_EXPR(node->type == KL_JSON_NODE_ARRAY);
+
+    #if 0
+    char* stringified = (char*)calloc(file_contents.length * 2, sizeof(char));
+    assert(stringified != 0);
+    KL_StrBuffer b = {0};
+    b.data = stringified;
+    b.capacity = (file_contents.length*2)-1;
+    if (!kl_json_node_stringify(node, &b)) {
+      fprintf(stderr, "ERROR: Failed to stringify.\n");
+      exit(1);
+    }
+    printf("%s\n", b.data);
+    free(stringified);
+    exit(0);
+    #endif
+
+    free(file_contents.value);
+    kl_json_parser_destroy(&parser);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
 /* ---- path module test helpers ---- */
 
 static KL_StrConst path_buf_view(const KL_StrBuffer* b) {
@@ -2971,6 +3026,7 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_str_scanner),
     
     KL_TEST_ENTRY(test_json_tokenizer),
+    KL_TEST_ENTRY(test_json_parser),
     
     KL_TEST_ENTRY(test_allocator_init_destroy),
     KL_TEST_ENTRY(test_allocator_double_init_is_noop),

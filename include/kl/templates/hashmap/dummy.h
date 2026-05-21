@@ -16,6 +16,8 @@ typedef struct {
   uint64_t hash;
   int64_t next;
   KL_Blob key;
+  /* bytes allocated for key.value in the arena; >= key.size, grows on demand */
+  int64_t key_capacity;
   T_X value;
   bool is_set;
 } KL_NAME_HashmapSlot;
@@ -36,6 +38,7 @@ typedef struct {
     KL_NAME_HashmapSlot* items;
     volatile int64_t length;
     volatile int64_t n_allocated;
+    KL_Allocation allocation;
   } slots;
 
   int64_t n_collisions;

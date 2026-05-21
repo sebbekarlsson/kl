@@ -16,9 +16,17 @@ static KL_NAME_HashmapSlot *kl_NAME_hashmap_new_slot(KL_NAME_Hashmap *map) {
   int64_t avail = map->slots.n_allocated - map->slots.length;
   if (avail <= 0) {
     int64_t grow = KL_MAX((int64_t)1, (map->capacity_pow2 / 3) + (map->n_collisions / 2));
-    KL_NAME_HashmapSlot *tmp = (KL_NAME_HashmapSlot *)realloc(
+    KL_NAME_HashmapSlot *tmp = 0;
+
+    if (map->config.allocator != 0) {
+      tmp = (KL_NAME_HashmapSlot *)kl_allocator_realloc_aligned(map->config.allocator,
+      (map->slots.n_allocated + grow) * sizeof(KL_NAME_HashmapSlot), alignof(KL_NAME_HashmapSlot), &map->slots.allocation);
+      assert(tmp != 0);
+    } else {
+      tmp = (KL_NAME_HashmapSlot *)realloc(
         map->slots.items,
         (map->slots.n_allocated + grow) * sizeof(KL_NAME_HashmapSlot));
+    }
     if (tmp == 0) return 0;
     map->slots.items = tmp;
     map->slots.n_allocated += grow;
@@ -34,7 +42,6 @@ static KL_NAME_HashmapSlot *kl_NAME_hashmap_new_slot(KL_NAME_Hashmap *map) {
 int kl_NAME_hashmap_init(KL_NAME_Hashmap *map, KL_HashmapConfig cfg) {
   assert(cfg.capacity > 0);
   assert(cfg.collision_capacity > 0);
-  assert(cfg.max_key_size > 0);
   if (map->initialized)
     return 1;
 
@@ -47,18 +54,27 @@ int kl_NAME_hashmap_init(KL_NAME_Hashmap *map, KL_HashmapConfig cfg) {
   map->capacity_pow2 = pow2;
   map->capacity_mask = (uint64_t)(pow2 - 1);
   map->slots.length = 0;
-  map->slots.items =
+
+  if (cfg.allocator != 0) {
+    map->slots.items = (KL_NAME_HashmapSlot*)kl_allocator_malloc_tracked_aligned(cfg.allocator, pow2*sizeof(KL_NAME_HashmapSlot), alignof(KL_NAME_HashmapSlot), &map->slots.allocation);
+    assert(map->slots.items != 0);
+  } else {
+    map->slots.items =
       (KL_NAME_HashmapSlot *)calloc(pow2, sizeof(KL_NAME_HashmapSlot));
+  }
   assert(map->slots.items != 0);
   map->slots.n_allocated = pow2;
 
+  /* Per-slot key buffers are carved from this arena and grow on demand; the
+     capacity here is only an initial page-size hint (~32 bytes per key). */
   kl_allocator_init(
       &map->key_allocator,
-      (KL_AllocatorConfig){.capacity = (pow2 + cfg.collision_capacity) * cfg.max_key_size});
+      (KL_AllocatorConfig){.capacity = (pow2 + cfg.collision_capacity) * 32});
 
   if (cfg.track_used_slots) {
     kl_int64_list_init(&map->used_slots, (KL_ListConfig){
-      .capacity = pow2
+      .capacity = pow2,
+      .allocator = map->config.allocator
     });
   }
 
@@ -73,7 +89,7 @@ int kl_NAME_hashmap_init(KL_NAME_Hashmap *map, KL_HashmapConfig cfg) {
 
   if (pthread_mutex_init(&map->write_lock, 0) != 0) {
     fprintf(stderr, "Failed to initialize mutex.\n");
-    if (map->slots.items != 0) {
+    if (map->slots.items != 0 && map->config.allocator == 0) {
       free(map->slots.items);
       map->slots.items = 0;
     }
@@ -94,7 +110,7 @@ int kl_NAME_hashmap_init(KL_NAME_Hashmap *map, KL_HashmapConfig cfg) {
 void kl_NAME_hashmap_destroy(KL_NAME_Hashmap *map) {
   assert(map->initialized == true);
 
-  if (map->slots.items != 0) {
+  if (map->slots.items != 0 && map->config.allocator == 0) {
     free(map->slots.items);
   }
   map->slots.items = 0;
@@ -128,7 +144,7 @@ KL_HashmapHash kl_NAME_hashmap_get_hash(KL_NAME_Hashmap *map, KL_Blob key) {
   KL_HashmapHash hash = {0};
   uint64_t mask = map->capacity_mask;
 
-  if (key.size <= (int64_t)sizeof(int64_t) && map->config.max_key_size <= (int64_t)sizeof(int64_t)) {
+  if (key.size <= (int64_t)sizeof(int64_t)) {
     uint64_t h = 0;
     memcpy(&h, key.value, key.size);
     h = kl_NAME_hashmap_murmur64_scramble(h | (uint64_t)key.size << 56);
@@ -158,11 +174,14 @@ static inline bool kl_NAME_hashmap_compare(KL_NAME_HashmapSlot *slot, KL_Blob ke
   return memcmp(slot->key.value, key.value, (size_t)key.size) == 0;
 }
 
+/* A slot keeps its key buffer across re-use and only grows it when a longer
+   key arrives; the old, smaller buffer is left behind in the arena and
+   reclaimed wholesale on destroy/reset. */
 static void kl_NAME_hashmap_assign_key(KL_NAME_Hashmap *map, KL_NAME_HashmapSlot *slot, KL_Blob key) {
-  assert(key.size <= map->config.max_key_size);
-  if (slot->key.value == 0) {
-    slot->key.value = kl_allocator_malloc(&map->key_allocator, map->config.max_key_size);
+  if (key.size > slot->key_capacity) {
+    slot->key.value = kl_allocator_malloc(map->config.allocator ? map->config.allocator : &map->key_allocator, key.size);
     assert(slot->key.value != 0);
+    slot->key_capacity = key.size;
   }
   assert(slot->key.value != 0);
   slot->key.size = key.size;
@@ -393,11 +412,13 @@ static void kl_NAME_hashmap_deserialize_slot(KL_NAME_Hashmap* map, KL_NAME_Hashm
   slot->is_set = is_set_byte != 0;
   fread(&slot->key.size, sizeof(int64_t), 1, fp);
   if (slot->key.size > 0) {
-    slot->key.value = kl_allocator_malloc(&map->key_allocator, map->config.max_key_size);
+    slot->key.value = kl_allocator_malloc(map->config.allocator ? map->config.allocator : &map->key_allocator, slot->key.size);
     assert(slot->key.value != 0);
+    slot->key_capacity = slot->key.size;
     fread(slot->key.value, (size_t)slot->key.size, 1, fp);
   } else {
     slot->key.value = 0;
+    slot->key_capacity = 0;
   }
   fread(&slot->value, sizeof(T_X), 1, fp);
 }
@@ -416,7 +437,6 @@ void kl_NAME_hashmap_serialize_to_file(KL_NAME_Hashmap map, FILE* fp) {
   memset(&config_out, 0, sizeof(config_out));
   config_out.capacity = map.config.capacity;
   config_out.collision_capacity = map.config.collision_capacity;
-  config_out.max_key_size = map.config.max_key_size;
   config_out.track_used_slots = map.config.track_used_slots;
   fwrite(&config_out, sizeof(KL_HashmapConfig), 1, fp);
   int64_t len = map.slots.length;

@@ -100,6 +100,14 @@ bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content) {
   return true;
 }
 
+bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count) {
+  if (buff->data == 0 || buff->capacity <= 0 || c == 0 || count <= 0) return false;
+  for (int64_t i = 0; i < count; i++) {
+    if (!kl_str_buffer_append_char(buff, c)) return false;
+  }
+  return true;
+}
+
 void kl_str_buffer_clear(KL_StrBuffer* buff) {
   if (buff->data == 0 || buff->capacity <= 0) return;
   memset(&buff->data[0], 0, buff->capacity);
