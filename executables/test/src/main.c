@@ -1,36 +1,6 @@
 #include <test/tests.h>
+#include <kl/cli/args.h>
 
-static KL_StrConst get_arg(int argc, char* argv[], KL_StrConst key, bool required) {
-  KL_StrConst ckey = kl_str_const_remove_prefix(key, KL_STR_CONST_LIT("--"));
-  ckey = kl_str_const_remove_prefix(ckey, KL_STR_CONST_LIT("-"));
-
-  for (int i = 0; i < argc; i++) {
-    KL_StrConst arg_a = KL_STR_CONST(argv[i]);
-    KL_StrConst arg_b = {0};
-    if (i < (argc -1)) {
-      arg_b = KL_STR_CONST(argv[i+1]);
-    }
-    arg_a = kl_str_const_remove_prefix(arg_a, KL_STR_CONST_LIT("--"));
-    arg_a = kl_str_const_remove_prefix(arg_a, KL_STR_CONST_LIT("-"));
-    if (arg_a.value != 0 && arg_a.length > 0 && kl_str_const_eq(arg_a, ckey)) {
-      if (
-        arg_b.value != 0 &&
-        arg_b.length > 0 &&
-        !kl_str_const_starts_with(arg_b, KL_STR_CONST_LIT("-"))
-      ) {
-        return arg_b;
-      }
-      return arg_a;
-    }
-  }
-
-  if (required) {
-    fprintf(stderr, "Missing required argument: %s\n", key.value);
-    exit(1);
-  }
-
-  return (KL_StrConst){0};
-}
 
 static void run_test(KL_TestEntry* entry) {
   KL_TestFunctionContext ctx = {0};
@@ -189,11 +159,15 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_path_normalize),
     KL_TEST_ENTRY(test_path_resolve),
     KL_TEST_ENTRY(test_path_cwd),
+
+    KL_TEST_ENTRY(test_cli_get_arg_space_syntax),
+    KL_TEST_ENTRY(test_cli_get_arg_equals_syntax),
+    KL_TEST_ENTRY(test_cli_get_arg_quoted_values),
   };
 
   int64_t n_tests = KL_ARRAY_LEN(tests);
 
-  KL_StrConst test_to_run = get_arg(argc, argv, KL_STR_CONST_LIT("--test"), false);
+  KL_StrConst test_to_run = kl_cli_get_arg(argc, argv, KL_STR_CONST_LIT("--test"), false);
 
   if (test_to_run.value != 0) {
     bool found = false;

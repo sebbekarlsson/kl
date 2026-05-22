@@ -29,6 +29,7 @@
 #include <kl/json/tokenizer.h>
 #include <kl/json/parser.h>
 #include <kl/path/path.h>
+#include <kl/cli/args.h>
 
 /* ===================== string (test_string.c) ===================== */
 void test_str_const_slice();
@@ -182,5 +183,10 @@ void test_path_join(KL_TestFunctionContext* ctx);
 void test_path_normalize(KL_TestFunctionContext* ctx);
 void test_path_resolve(KL_TestFunctionContext* ctx);
 void test_path_cwd(KL_TestFunctionContext* ctx);
+
+/* ===================== cli (test_cli.c) ===================== */
+void test_cli_get_arg_space_syntax(KL_TestFunctionContext* ctx);
+void test_cli_get_arg_equals_syntax(KL_TestFunctionContext* ctx);
+void test_cli_get_arg_quoted_values(KL_TestFunctionContext* ctx);
 
 #endif
