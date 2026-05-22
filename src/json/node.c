@@ -211,3 +211,23 @@ KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path) {
 
   return cur;
 }
+
+int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fallback) {
+  if (path.length <= 0 || path.value == 0) return -1;
+  if (!is_traversable(node)) return -1;
+
+  KL_JSONNode* selected = kl_json_node_select(node, path);
+  if (selected == 0) return -1;
+  if (selected->type != KL_JSON_NODE_INT) return -1;
+
+  return selected->as.number_int;
+}
+
+KL_json_node_ptr_List* kl_json_node_select_array(KL_JSONNode* node, KL_StrConst path) {
+  if (path.length <= 0 || path.value == 0) return 0;
+  if (!is_traversable(node)) return 0;
+  KL_JSONNode* selected = kl_json_node_select(node, path);
+  if (selected == 0) return 0;
+  if (selected->type != KL_JSON_NODE_ARRAY) return 0;
+  return &selected->as.array;
+}

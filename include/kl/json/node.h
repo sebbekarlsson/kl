@@ -48,4 +48,8 @@ bool kl_json_node_as_boolean(const KL_JSONNode* node);
 
 KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path);
 
+int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fallback);
+
+KL_json_node_ptr_List* kl_json_node_select_array(KL_JSONNode* node, KL_StrConst path);
+
 #endif
