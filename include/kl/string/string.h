@@ -33,11 +33,16 @@ bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub);
 
 bool kl_str_const_is_integer(KL_StrConst str);
 
+// True if the string is an integer or a decimal float (e.g. "3", "-3", "3.14").
+bool kl_str_const_is_numeric(KL_StrConst str);
+
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length);
 
 KL_StrConst kl_str_const_remove_prefix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub);
+
+KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator);
 
 typedef struct {
   char* data;

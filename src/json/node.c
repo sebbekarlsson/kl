@@ -155,7 +155,7 @@ KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path) {
 
   KL_StrBuffer tmp = KL_STR_BUFFER_STACK_ALLOC(256);
   kl_str_buffer_clear(&tmp);
-  
+
 
   while (kl_str_scanner_has_more(&scanner) && cur != 0) {
 
@@ -173,9 +173,9 @@ KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path) {
       continue;
     }
 
-    if (isalpha(scanner.c)) {
+    if (kl_str_scanner_has_identifier_start(&scanner)) {
       kl_str_buffer_clear(&tmp);
-      if (!kl_str_scanner_eat_alpha(&scanner, &tmp)) return 0;
+      if (!kl_str_scanner_eat_identifier(&scanner, &tmp)) return 0;
       assert(tmp.length > 0);
       assert(tmp.data != 0);
       cur = select_shallow(cur, (KL_StrConst){ .value = tmp.data, .length = tmp.length });

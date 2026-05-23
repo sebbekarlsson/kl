@@ -34,6 +34,10 @@ bool kl_str_scanner_eat_integer(KL_StrScanner* scanner, KL_StrBuffer* out);
 
 bool kl_str_scanner_eat_alpha(KL_StrScanner* scanner, KL_StrBuffer* out);
 
+bool kl_str_scanner_eat_any_of(KL_StrScanner* scanner, KL_StrConst chars, KL_StrBuffer* out);
+
+bool kl_str_scanner_eat_identifier(KL_StrScanner* scanner, KL_StrBuffer* out);
+
 /**
 * @brief mutates the state
 **/
@@ -58,5 +62,15 @@ KL_StrConst kl_str_scanner_slice(KL_StrScanner* scanner, int64_t length);
 * @brief does not mutate the state
 **/
 bool kl_str_scanner_has(KL_StrScanner* scanner, KL_StrConst token);
+
+/**
+* @brief does not mutate the state
+**/
+bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars);
+
+/**
+* @brief does not mutate the state
+**/
+bool kl_str_scanner_has_identifier_start(KL_StrScanner* scanner);
 
 #endif

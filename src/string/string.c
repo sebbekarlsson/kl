@@ -45,11 +45,44 @@ bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub) {
 bool kl_str_const_is_integer(KL_StrConst str) {
   if (str.value == 0 || str.length <= 0) return false;
 
-  for (int64_t i = 0; i < str.length; i++) {
-    if (!isdigit(str.value[i])) return false;
+  int64_t start = 0;
+  if (str.value[0] == '-' || str.value[0] == '+') {
+    if (str.length == 1) return false; // a lone sign is not an integer
+    start = 1;
   }
-  
+
+  for (int64_t i = start; i < str.length; i++) {
+    if (!isdigit((unsigned char)str.value[i])) return false;
+  }
+
   return true;
+}
+
+bool kl_str_const_is_numeric(KL_StrConst str) {
+  if (str.value == 0 || str.length <= 0) return false;
+
+  int64_t start = 0;
+  if (str.value[0] == '-' || str.value[0] == '+') {
+    if (str.length == 1) return false; // a lone sign is not numeric
+    start = 1;
+  }
+
+  bool seen_dot = false;
+  bool seen_digit = false;
+
+  for (int64_t i = start; i < str.length; i++) {
+    char c = str.value[i];
+    if (c == '.') {
+      if (seen_dot) return false; // at most one decimal point
+      seen_dot = true;
+    } else if (isdigit((unsigned char)c)) {
+      seen_digit = true;
+    } else {
+      return false;
+    }
+  }
+
+  return seen_digit; // reject "", "-", ".", "-." etc.
 }
 
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length) {
@@ -82,6 +115,20 @@ KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub) {
   return (KL_StrConst){
     .value = str.value,
     .length = KL_MAX(0, str.length - sub.length)
+  };
+}
+
+KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator) {
+  assert(allocator != 0);
+  assert(allocator->initialized);
+  if (str.length <= 0 || str.value == 0) return (KL_StrConst){0};
+
+  char* copy = kl_allocator_strdup(allocator, str.value, str.length);
+  assert(copy != 0);
+
+  return (KL_StrConst){
+    .value = copy,
+    .length = str.length
   };
 }
 

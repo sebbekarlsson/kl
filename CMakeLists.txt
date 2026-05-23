@@ -74,3 +74,4 @@ endfunction()
 
 
 add_subproject(executables test)
+add_subproject(executables kl_playground)

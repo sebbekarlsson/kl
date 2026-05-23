@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <stddef.h>
 
+static const KL_StrConst alpha_ish = KL_STR_CONST_LIT("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_");
 
 bool kl_str_scanner_init(KL_StrScanner* scanner, KL_StrConst str) {
   if (scanner->initialized) return true;
@@ -81,6 +82,30 @@ bool kl_str_scanner_eat_alpha(KL_StrScanner* scanner, KL_StrBuffer* out) {
   return out->length > 0;
 }
 
+bool kl_str_scanner_eat_any_of(KL_StrScanner* scanner, KL_StrConst chars, KL_StrBuffer* out) {
+  assert(scanner->initialized);
+
+  while (kl_str_scanner_has_any_of(scanner, chars)) {
+    if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+    kl_str_scanner_advance(scanner, 1);
+  }
+
+  return out->length > 0;
+}
+
+bool kl_str_scanner_eat_identifier(KL_StrScanner* scanner, KL_StrBuffer* out) {
+  assert(scanner->initialized);
+
+  if (!kl_str_scanner_eat_any_of(scanner, alpha_ish, out)) return false;
+
+  while (kl_str_scanner_has_more(scanner) && (isdigit(scanner->c) || kl_str_scanner_has_any_of(scanner, alpha_ish))) {
+    if (!kl_str_buffer_append_char(out, scanner->c)) return false;
+    kl_str_scanner_advance(scanner, 1);
+  }
+
+  return out->length > 0;
+}
+
 bool kl_str_scanner_advance(KL_StrScanner* scanner, int64_t steps) {
   assert(scanner->initialized);
   if (steps <= 0) return false;
@@ -142,4 +167,21 @@ bool kl_str_scanner_has(KL_StrScanner* scanner, KL_StrConst token) {
   assert(slice.length == token.length);
 
   return memcmp(slice.value, token.value, token.length) == 0;
+}
+
+bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars) {
+  assert(scanner->initialized);
+  assert(scanner->str.value != 0);
+  assert(scanner->str.length > 0);
+  if (chars.length <= 0 || chars.value == 0) return false;
+
+  for (int64_t i = 0; i < chars.length; i++) {
+    if (scanner->c == chars.value[i]) return true;
+  }
+  
+  return false;
+}
+
+bool kl_str_scanner_has_identifier_start(KL_StrScanner* scanner) {
+  return kl_str_scanner_has_any_of(scanner, alpha_ish);
 }
