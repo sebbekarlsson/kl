@@ -2,23 +2,23 @@
 #include <kl/threads/mutex.h>
 #include <assert.h>
 
-int kl_mutex_init(KL_Mutex* mutex) {
-  if (mutex->initialized) return 1;
+bool kl_mutex_init(KL_Mutex* mutex) {
+  if (mutex->initialized) return true;
 
   if (pthread_mutexattr_init(&mutex->attr) != 0) {
-    return 0;
+    return false;
   }
 
   if (pthread_mutexattr_settype(&mutex->attr, PTHREAD_MUTEX_RECURSIVE) != 0) {
-    return 0;
+    return false;
   }
 
   if (pthread_mutex_init(&mutex->id, &mutex->attr) != 0) {
-    return 0;
+    return false;
   }
 
   mutex->initialized = true;
-  return 1;
+  return true;
 }
 
 int kl_mutex_lock(KL_Mutex* mutex) {

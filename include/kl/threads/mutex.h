@@ -9,7 +9,7 @@ typedef struct {
   bool initialized;
 } KL_Mutex;
 
-int kl_mutex_init(KL_Mutex* mutex);
+bool kl_mutex_init(KL_Mutex* mutex);
 
 int kl_mutex_lock(KL_Mutex* mutex);
 
