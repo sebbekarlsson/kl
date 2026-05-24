@@ -21,3 +21,8 @@ float kl_smoothstep_f32(float e0, float e1, float x) {
   float t = kl_clamp_f32((x - e0) / (e1 - e0), 0.0f, 1.0f);
   return t * t * (3.0f - 2.0f * t);
 }
+
+float kl_slt_f32(float a, float b, float s) {
+  float h = kl_clamp_f32(0.5f + (0.5f * (b - a)) / s, 0.0f, 1.0f);
+  return kl_lerp_f32(0.0f, 1.0f, h * h * (3.0f - 2.0f * h));
+}
