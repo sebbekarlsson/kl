@@ -7,4 +7,7 @@
 
 #define KL_ARRAY_LEN(ARR) (sizeof(ARR) / sizeof((ARR)[0]))
 
+#define KL_ENUM_STR(NAME) #NAME,
+#define KL_ENUM_VALUE(NAME) NAME,
+
 #endif
