@@ -3,7 +3,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <math.h>
 
+
+#define KL_PI 3.141592653589793
+#define KL_TAU 6.283185307179586
 
 uint32_t kl_f32_to_uint32(float x);
 
