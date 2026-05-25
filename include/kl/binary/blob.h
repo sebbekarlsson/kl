@@ -11,6 +11,6 @@ typedef struct {
 #define KL_BLOB_T(T, X) ((KL_Blob){ .value = (uint8_t*)&(X), .size = sizeof(T) })
 #define KL_BLOB_AUTO(X) KL_BLOB_T(typeof(X), X)
 
-#define KL_BLOB_NULL() ((KL_BLob){0})
+#define KL_BLOB_NULL() ((KL_Blob){0})
 
 #endif
