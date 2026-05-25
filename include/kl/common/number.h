@@ -13,6 +13,7 @@ float kl_lerp_f32(float from, float to, float t);
 
 float kl_smoothstep_f32(float e0, float e1, float x);
 
+float kl_fract_f32(float x);
 
 /**
 * @brief smooth "less than"
