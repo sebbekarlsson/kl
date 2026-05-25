@@ -1,6 +1,22 @@
 #include <kl/common/number.h>
 #include <math.h>
 
+uint32_t kl_f32_to_uint32(float x) {
+  union {
+    float f;
+    uint32_t i;
+  } p = { .f = x };
+  return p.i;
+}
+
+uint64_t kl_f64_to_uint64(double x) {
+  union {
+    double f;
+    uint64_t i;
+  } p = { .f = x };
+  return p.i;
+}
+
 bool kl_is_unsafe_f32(float x) {
   return isnanf(x) || isinff(x);
 }

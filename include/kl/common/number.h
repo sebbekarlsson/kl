@@ -2,6 +2,13 @@
 #define KL_NUMBER_H
 
 #include <stdbool.h>
+#include <stdint.h>
+
+
+uint32_t kl_f32_to_uint32(float x);
+
+uint64_t kl_f64_to_uint64(double x);
+
 
 bool kl_is_unsafe_f32(float x);
 
