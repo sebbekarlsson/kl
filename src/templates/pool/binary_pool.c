@@ -146,6 +146,16 @@ uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx) {
   return &pool->items[idx * pool_stride(pool)];
 }
 
+bool kl_binary_pool_has_slot(KL_BinaryPool* pool, int64_t idx) {
+  assert(pool->initialized);
+  if (idx < 0 || idx >= pool->config.count) return false;
+
+  kl_mutex_lock(&pool->lock);
+  bool has = pool->taken_pos != 0 && pool->taken_pos[idx] >= 0;
+  kl_mutex_unlock(&pool->lock);
+  return has;
+}
+
 void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx) {
   assert(pool->initialized);
   if (pool->items == 0) return;

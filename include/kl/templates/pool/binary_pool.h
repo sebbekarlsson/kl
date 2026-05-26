@@ -40,6 +40,8 @@ uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx);
 
 uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx);
 
+bool kl_binary_pool_has_slot(KL_BinaryPool* pool, int64_t idx);
+
 void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx);
 
 
