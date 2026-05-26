@@ -14,9 +14,19 @@ static void run_test(KL_TestEntry* entry) {
 
 int main(int argc, char* argv[]) {
   KL_TestEntry tests[] = {
+    KL_TEST_ENTRY(test_str_const_eq),
     KL_TEST_ENTRY(test_str_const_slice),
     KL_TEST_ENTRY(test_str_const_includes),
     KL_TEST_ENTRY(test_str_scanner),
+    KL_TEST_ENTRY(test_jaro_winkler_identical_returns_one),
+    KL_TEST_ENTRY(test_jaro_winkler_empty_returns_zero),
+    KL_TEST_ENTRY(test_jaro_winkler_disjoint_returns_zero),
+    KL_TEST_ENTRY(test_jaro_winkler_martha_marhta),
+    KL_TEST_ENTRY(test_jaro_winkler_dixon_dicksonx),
+    KL_TEST_ENTRY(test_jaro_winkler_is_symmetric),
+    KL_TEST_ENTRY(test_jaro_winkler_prefix_capped_at_four),
+    KL_TEST_ENTRY(test_jaro_winkler_stays_bounded_for_long_shared_prefix),
+    KL_TEST_ENTRY(test_jaro_winkler_single_char),
 
     KL_TEST_ENTRY(test_json_tokenizer),
     KL_TEST_ENTRY(test_json_parser),

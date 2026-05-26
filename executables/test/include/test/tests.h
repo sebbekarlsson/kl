@@ -19,6 +19,7 @@
 #include <kl/macros.h>
 #include <kl/string/string.h>
 #include <kl/string/scanner.h>
+#include <kl/string/jaro_winkler.h>
 #include <kl/memory/allocator.h>
 #include <kl/templates/list/int64_list.h>
 #include <kl/templates/list/blob_ptr_list.h>
@@ -32,9 +33,19 @@
 #include <kl/cli/args.h>
 
 /* ===================== string (test_string.c) ===================== */
+void test_str_const_eq();
 void test_str_const_slice();
 void test_str_const_includes();
 void test_str_scanner(KL_TestFunctionContext* ctx);
+void test_jaro_winkler_identical_returns_one();
+void test_jaro_winkler_empty_returns_zero();
+void test_jaro_winkler_disjoint_returns_zero();
+void test_jaro_winkler_martha_marhta();
+void test_jaro_winkler_dixon_dicksonx();
+void test_jaro_winkler_is_symmetric();
+void test_jaro_winkler_prefix_capped_at_four();
+void test_jaro_winkler_stays_bounded_for_long_shared_prefix();
+void test_jaro_winkler_single_char();
 
 /* ===================== json (test_json.c) ===================== */
 void test_json_tokenizer(KL_TestFunctionContext* ctx);

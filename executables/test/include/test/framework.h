@@ -7,6 +7,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <math.h>
 
 #define KL_TEST_TEMP_BUFFER_CAP 2048
 #define KL_TEST_MAX_SUBTESTS 128
@@ -187,8 +188,10 @@ void kl_test_print_summary(void);
 #define KL_TEST_ASSERT(EXPR, MSG) do { if (!(EXPR)) { KL_TEST_PRINT_ASSERT_FAILURE(MSG); KL_TEST_FAILED(); } } while (0)
 
 #define KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B) "expected " KL_TEST_STR(A) " to be equal " KL_TEST_STR(B)
+#define KL_TEST_EXPECT_EQ_FLOAT_ERROR_MESSAGE(A, B, T) "expected " KL_TEST_STR(A) " to be within " KL_TEST_STR(T) " of " KL_TEST_STR(B)
 #define KL_TEST_EXPECT_EXPR(EXPR) KL_TEST_ASSERT(EXPR, "expected " KL_TEST_STR(EXPR) " to be truthy")
 #define KL_TEST_EXPECT_EQ_INT(A, B) KL_TEST_ASSERT((A) == (B), KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B))
 #define KL_TEST_EXPECT_EQ_CHAR(A, B) KL_TEST_ASSERT((A) == (B), KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B))
+#define KL_TEST_EXPECT_EQ_FLOAT(A, B, T) KL_TEST_ASSERT(fabsf((float)(A) - (float)(B)) <= (float)(T), KL_TEST_EXPECT_EQ_FLOAT_ERROR_MESSAGE(A, B, T))
 
 #endif

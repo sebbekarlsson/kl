@@ -5,9 +5,9 @@
 
 bool kl_str_const_eq(KL_StrConst a, KL_StrConst b) {
   if (a.length != b.length) return false;
-  if (a.value == 0 && b.value == 0) return true;
-  if (a.length <= 0 || a.value == 0 || b.length <= 0 || b.value == 0) return false;
-  return memcmp(a.value, b.value, b.length) == 0;
+  if (a.length <= 0) return true;
+  if (a.value == 0 || b.value == 0) return false;
+  return memcmp(a.value, b.value, a.length) == 0;
 }
 
 bool kl_str_const_starts_with(KL_StrConst str, KL_StrConst sub) {
