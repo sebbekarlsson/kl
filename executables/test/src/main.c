@@ -146,6 +146,12 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_binary_sparseset_many_inserts_round_trip),
     KL_TEST_ENTRY(test_binary_sparseset_alignment_default),
     KL_TEST_ENTRY(test_binary_sparseset_id_zero_works),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_init_destroy),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_set_get_basic),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_sparse_grows_for_large_id),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_dense_grows_when_full),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_many_inserts_round_trip),
+    KL_TEST_ENTRY(test_binary_sparseset_noalloc_reset_then_reuse),
 
     KL_TEST_ENTRY(test_fs_read_directory_rejects_bad_args),
     KL_TEST_ENTRY(test_fs_read_directory_lists_project_src_non_recursive),

@@ -568,3 +568,157 @@ void test_binary_sparseset_id_zero_works() {
 
   kl_test_bss_teardown(&fx);
 }
+
+// ---------- no-allocator variants ----------
+// Same surface as the arena-backed tests above, but with cfg.allocator == NULL
+// so the set falls back to kl_aligned_alloc / kl_aligned_realloc / free.
+
+static void kl_test_bss_setup_noalloc(KL_BinarySparseSet* set, int64_t element_size,
+                                      int64_t element_alignment,
+                                      int64_t sparse_capacity, int64_t dense_capacity) {
+  *set = (KL_BinarySparseSet){0};
+  kl_binary_sparseset_init(set, (KL_BinarySparseSetConfig){
+    .sparse_capacity = sparse_capacity,
+    .dense_capacity = dense_capacity,
+    .element_size = element_size,
+    .element_alignment = element_alignment,
+    .allocator = 0,
+  });
+}
+
+void test_binary_sparseset_noalloc_init_destroy() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 16, 8);
+
+  KL_TEST_ASSERT(set.initialized == true, "initialized after init");
+  KL_TEST_ASSERT(set.config.allocator == 0, "allocator stays null");
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, 16);
+  KL_TEST_EXPECT_EQ_INT((int)set.dense_capacity, 8);
+  KL_TEST_ASSERT(set.sparse != 0, "sparse buffer allocated via kl_aligned_alloc");
+  KL_TEST_ASSERT(set.indices != 0, "indices buffer allocated via kl_aligned_alloc");
+  KL_TEST_ASSERT(set.values != 0, "values buffer allocated via kl_aligned_alloc");
+  for (int64_t i = 0; i < set.sparse_capacity; i++) {
+    KL_TEST_ASSERT(set.sparse[i] == -1, "sparse slot defaults to -1");
+  }
+
+  kl_binary_sparseset_destroy(&set);
+  KL_TEST_ASSERT(set.initialized == false, "initialized cleared after destroy");
+  KL_TEST_ASSERT(set.sparse == 0, "sparse pointer cleared");
+  KL_TEST_ASSERT(set.indices == 0, "indices pointer cleared");
+  KL_TEST_ASSERT(set.values == 0, "values pointer cleared");
+}
+
+void test_binary_sparseset_noalloc_set_get_basic() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 16, 8);
+
+  int64_t v = 12345;
+  void* p = kl_binary_sparseset_set(&set, 3, &v);
+  KL_TEST_ASSERT(p != 0, "set returns non-null pointer");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 1);
+
+  int64_t* got = (int64_t*)kl_binary_sparseset_get(&set, 3);
+  KL_TEST_ASSERT(got != 0, "get returns non-null for inserted id");
+  KL_TEST_ASSERT(*got == 12345, "value round-trips");
+
+  kl_binary_sparseset_destroy(&set);
+}
+
+void test_binary_sparseset_noalloc_sparse_grows_for_large_id() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 8, 8);
+
+  int64_t initial_cap = set.sparse_capacity;
+  KL_TEST_EXPECT_EQ_INT((int)initial_cap, 8);
+
+  // Insert an id large enough to force the sparse array to double several times.
+  // This exercises the kl_aligned_realloc fallback path.
+  int64_t v = 777;
+  kl_binary_sparseset_set(&set, 100, &v);
+  KL_TEST_ASSERT(set.sparse_capacity > 100, "sparse capacity now covers id 100");
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, 128);
+
+  for (int64_t i = initial_cap; i < set.sparse_capacity; i++) {
+    if (i == 100) continue;
+    KL_TEST_ASSERT(set.sparse[i] == -1, "new sparse slots default to -1");
+  }
+  KL_TEST_ASSERT(*(int64_t*)kl_binary_sparseset_get(&set, 100) == 777, "stored value");
+
+  kl_binary_sparseset_destroy(&set);
+}
+
+void test_binary_sparseset_noalloc_dense_grows_when_full() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 64, 4);
+
+  KL_TEST_EXPECT_EQ_INT((int)set.dense_capacity, 4);
+
+  // Force multiple dense doublings — both indices and values go through
+  // kl_aligned_realloc.
+  for (int64_t i = 0; i < 20; i++) {
+    int64_t v = i * i;
+    kl_binary_sparseset_set(&set, i, &v);
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 20);
+  KL_TEST_ASSERT(set.dense_capacity >= 20, "dense capacity grew to fit");
+
+  for (int64_t i = 0; i < 20; i++) {
+    int64_t* got = (int64_t*)kl_binary_sparseset_get(&set, i);
+    KL_TEST_ASSERT(got != 0, "every id retrievable");
+    KL_TEST_ASSERT(*got == i * i, "values preserved across dense grow");
+  }
+
+  kl_binary_sparseset_destroy(&set);
+}
+
+void test_binary_sparseset_noalloc_many_inserts_round_trip() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 4, 4);
+
+  enum { N = 1000 };
+  for (int64_t i = 0; i < N; i++) {
+    int64_t v = i * 7 - 3;
+    kl_binary_sparseset_set(&set, i, &v);
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, N);
+  KL_TEST_ASSERT(set.sparse_capacity >= N, "sparse covers all ids");
+  KL_TEST_ASSERT(set.dense_capacity >= N, "dense covers all ids");
+
+  for (int64_t i = 0; i < N; i++) {
+    int64_t* got = (int64_t*)kl_binary_sparseset_get(&set, i);
+    KL_TEST_ASSERT(got != 0, "id present after mass insert");
+    KL_TEST_ASSERT(*got == i * 7 - 3, "value preserved");
+  }
+
+  // Remove every other id — exercises swap-and-pop without an arena.
+  for (int64_t i = 0; i < N; i += 2) {
+    KL_TEST_ASSERT(kl_binary_sparseset_remove(&set, i), "remove even id");
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, N / 2);
+  for (int64_t i = 1; i < N; i += 2) {
+    int64_t* got = (int64_t*)kl_binary_sparseset_get(&set, i);
+    KL_TEST_ASSERT(got != 0 && *got == i * 7 - 3, "odd survives with right value");
+  }
+
+  kl_binary_sparseset_destroy(&set);
+}
+
+void test_binary_sparseset_noalloc_reset_then_reuse() {
+  KL_BinarySparseSet set = {0};
+  kl_test_bss_setup_noalloc(&set, sizeof(int64_t), _Alignof(int64_t), 16, 8);
+
+  // Trigger a sparse grow so reset must preserve the grown capacity.
+  int64_t v = 1;
+  kl_binary_sparseset_set(&set, 64, &v);
+  int64_t sparse_cap = set.sparse_capacity;
+  KL_TEST_ASSERT(sparse_cap > 16, "sparse grew");
+
+  kl_binary_sparseset_reset(&set);
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 0);
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, (int)sparse_cap);
+
+  kl_binary_sparseset_set(&set, 3, &v);
+  KL_TEST_ASSERT(kl_binary_sparseset_has(&set, 3), "usable after reset");
+
+  kl_binary_sparseset_destroy(&set);
+}

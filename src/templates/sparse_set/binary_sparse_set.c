@@ -1,5 +1,7 @@
 #include <kl/templates/sparse_set/binary_sparse_set.h>
+#include <kl/memory/alloc.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 void kl_binary_sparseset_init(KL_BinarySparseSet* set, KL_BinarySparseSetConfig cfg) {
@@ -7,7 +9,6 @@ void kl_binary_sparseset_init(KL_BinarySparseSet* set, KL_BinarySparseSetConfig 
   assert(cfg.sparse_capacity > 0);
   assert(cfg.dense_capacity > 0);
   assert(cfg.element_size > 0);
-  assert(cfg.allocator != 0);
 
   set->config = cfg;
   set->length = 0;
@@ -16,33 +17,42 @@ void kl_binary_sparseset_init(KL_BinarySparseSet* set, KL_BinarySparseSetConfig 
   set->stride = cfg.element_size;
   set->alignment = cfg.element_alignment > 0 ? cfg.element_alignment : 1;
 
-  set->sparse = (int64_t*)kl_allocator_malloc_tracked_aligned(
-    cfg.allocator,
-    cfg.sparse_capacity * (int64_t)sizeof(int64_t),
-    _Alignof(int64_t),
-    &set->_sparse_ref
-  );
-  memset(set->sparse, 0xFF, (size_t)(cfg.sparse_capacity * (int64_t)sizeof(int64_t)));
+  int64_t sparse_bytes = cfg.sparse_capacity * (int64_t)sizeof(int64_t);
+  int64_t indices_bytes = cfg.dense_capacity * (int64_t)sizeof(int64_t);
+  int64_t values_bytes = cfg.dense_capacity * set->stride;
 
-  set->indices = (int64_t*)kl_allocator_malloc_tracked_aligned(
-    cfg.allocator,
-    cfg.dense_capacity * (int64_t)sizeof(int64_t),
-    _Alignof(int64_t),
-    &set->_indices_ref
-  );
+  if (cfg.allocator != 0) {
+    set->sparse = (int64_t*)kl_allocator_malloc_tracked_aligned(
+      cfg.allocator, sparse_bytes, _Alignof(int64_t), &set->_sparse_ref
+    );
+    set->indices = (int64_t*)kl_allocator_malloc_tracked_aligned(
+      cfg.allocator, indices_bytes, _Alignof(int64_t), &set->_indices_ref
+    );
+    set->values = kl_allocator_malloc_tracked_aligned(
+      cfg.allocator, values_bytes, set->alignment, &set->_values_ref
+    );
+  } else {
+    set->sparse = (int64_t*)kl_aligned_alloc((size_t)sparse_bytes, _Alignof(int64_t));
+    set->indices = (int64_t*)kl_aligned_alloc((size_t)indices_bytes, _Alignof(int64_t));
+    set->values = (uint8_t*)kl_aligned_alloc((size_t)values_bytes, (size_t)set->alignment);
+  }
 
-  set->values = kl_allocator_malloc_tracked_aligned(
-    cfg.allocator,
-    cfg.dense_capacity * set->stride,
-    set->alignment,
-    &set->_values_ref
-  );
+  assert(set->sparse != 0);
+  assert(set->indices != 0);
+  assert(set->values != 0);
+
+  memset(set->sparse, 0xFF, (size_t)sparse_bytes);
 
   set->initialized = true;
 }
 
 void kl_binary_sparseset_destroy(KL_BinarySparseSet* set) {
   if (!set->initialized) return;
+  if (set->config.allocator == 0) {
+    if (set->sparse != 0) free(set->sparse);
+    if (set->indices != 0) free(set->indices);
+    if (set->values != 0) free(set->values);
+  }
   set->sparse = 0;
   set->indices = 0;
   set->values = 0;
@@ -75,7 +85,12 @@ void* kl_binary_sparseset_set(KL_BinarySparseSet* set, int64_t id, const void* d
     int64_t old_size = set->sparse_capacity * (int64_t)sizeof(int64_t);
     int64_t new_size = new_sparse_cap * (int64_t)sizeof(int64_t);
 
-    set->sparse = (int64_t*)kl_allocator_realloc_aligned(alloc, new_size, _Alignof(int64_t), &set->_sparse_ref);
+    if (alloc != 0) {
+      set->sparse = (int64_t*)kl_allocator_realloc_aligned(alloc, new_size, _Alignof(int64_t), &set->_sparse_ref);
+    } else {
+      set->sparse = (int64_t*)kl_aligned_realloc(set->sparse, (size_t)new_size, _Alignof(int64_t));
+    }
+    assert(set->sparse != 0);
     memset((uint8_t*)set->sparse + old_size, 0xFF, (size_t)(new_size - old_size));
     set->sparse_capacity = new_sparse_cap;
   }
@@ -94,18 +109,26 @@ void* kl_binary_sparseset_set(KL_BinarySparseSet* set, int64_t id, const void* d
   // Grow dense arrays if needed.
   if (set->length >= set->dense_capacity) {
     int64_t new_dense_cap = set->dense_capacity * 2;
-    set->indices = (int64_t*)kl_allocator_realloc_aligned(
-      alloc,
-      new_dense_cap * (int64_t)sizeof(int64_t),
-      _Alignof(int64_t),
-      &set->_indices_ref
-    );
-    set->values = (uint8_t*)kl_allocator_realloc_aligned(
-      alloc,
-      new_dense_cap * set->stride,
-      set->alignment,
-      &set->_values_ref
-    );
+    int64_t indices_bytes = new_dense_cap * (int64_t)sizeof(int64_t);
+    int64_t values_bytes = new_dense_cap * set->stride;
+
+    if (alloc != 0) {
+      set->indices = (int64_t*)kl_allocator_realloc_aligned(
+        alloc, indices_bytes, _Alignof(int64_t), &set->_indices_ref
+      );
+      set->values = (uint8_t*)kl_allocator_realloc_aligned(
+        alloc, values_bytes, set->alignment, &set->_values_ref
+      );
+    } else {
+      set->indices = (int64_t*)kl_aligned_realloc(
+        set->indices, (size_t)indices_bytes, _Alignof(int64_t)
+      );
+      set->values = (uint8_t*)kl_aligned_realloc(
+        set->values, (size_t)values_bytes, (size_t)set->alignment
+      );
+    }
+    assert(set->indices != 0);
+    assert(set->values != 0);
     set->dense_capacity = new_dense_cap;
   }
 

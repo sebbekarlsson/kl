@@ -14,7 +14,7 @@ typedef struct {
   int64_t dense_capacity;
   int64_t element_size;
   int64_t element_alignment;
-  KL_Allocator* allocator;
+  KL_Allocator* allocator; // optional
 } KL_BinarySparseSetConfig;
 
 typedef struct {

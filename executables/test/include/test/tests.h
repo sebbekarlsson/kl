@@ -168,6 +168,12 @@ void test_binary_sparseset_struct_payload_round_trip();
 void test_binary_sparseset_many_inserts_round_trip();
 void test_binary_sparseset_alignment_default();
 void test_binary_sparseset_id_zero_works();
+void test_binary_sparseset_noalloc_init_destroy();
+void test_binary_sparseset_noalloc_set_get_basic();
+void test_binary_sparseset_noalloc_sparse_grows_for_large_id();
+void test_binary_sparseset_noalloc_dense_grows_when_full();
+void test_binary_sparseset_noalloc_many_inserts_round_trip();
+void test_binary_sparseset_noalloc_reset_then_reuse();
 
 /* ===================== fs (test_fs.c) ===================== */
 void test_fs_read_directory_rejects_bad_args();
