@@ -1,3 +1,9 @@
+/**
+* A thread-safe structure for acquiring and recycling memory.
+* The capacity is fixed, it never grows.
+**/
+
+
 #ifndef KL_BINARY_POOL_H
 #define KL_BINARY_POOL_H
 
