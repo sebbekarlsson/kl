@@ -2,6 +2,7 @@
 #define KL_BINARY_POOL_H
 
 #include <kl/templates/list/int64_list.h>
+#include <kl/threads/mutex.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -21,9 +22,11 @@ typedef struct {
   KL_int64_List free_indices;
 
   bool* index_check;
+
+  KL_Mutex lock;
 } KL_BinaryPool;
 
-void kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg);
+bool kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg);
 
 void kl_binary_pool_destroy(KL_BinaryPool* pool);
 

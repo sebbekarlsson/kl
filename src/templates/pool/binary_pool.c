@@ -34,10 +34,14 @@ static void ensure_slots(KL_BinaryPool* pool) {
   assert(pool->items != 0);
 }
 
-void kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
-  if (pool->initialized) return;
+bool kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
+  if (pool->initialized) return true;
   assert(cfg.count > 0);
   assert(cfg.element_size > 0);
+
+  if (!kl_mutex_init(&pool->lock)) {
+    return false;
+  }
 
   kl_int64_list_init(&pool->free_indices, (KL_ListConfig){
     .capacity = cfg.count,
@@ -48,11 +52,15 @@ void kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
   pool->items = 0;
   pool->index_check = 0;
   pool->initialized = true;
+
+  return true;
 }
 
 void kl_binary_pool_destroy(KL_BinaryPool* pool) {
   assert(pool->initialized);
 
+  kl_mutex_lock(&pool->lock);
+  
   kl_int64_list_destroy(&pool->free_indices);
 
   if (pool->items != 0) {
@@ -67,26 +75,40 @@ void kl_binary_pool_destroy(KL_BinaryPool* pool) {
   assert(pool->items == 0);
   assert(pool->index_check == 0);
 
+  kl_mutex_unlock(&pool->lock);
+  kl_mutex_destroy(&pool->lock);
+
   memset(pool, 0, sizeof(KL_BinaryPool));
+
 }
 
 void kl_binary_pool_reset(KL_BinaryPool* pool) {
   assert(pool->initialized);
   if (pool->items == 0) return;
 
+  kl_mutex_lock(&pool->lock);
+  
   memset(pool->items, 0, pool->config.count * pool_stride(pool));
   memset(pool->index_check, 0, pool->config.count * sizeof(bool));
   kl_int64_list_reset(&pool->free_indices);
   fill_free_indices(&pool->free_indices, pool->config.count);
+  
+  kl_mutex_unlock(&pool->lock);
 }
 
 uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx) {
   assert(pool->initialized);
+
+  kl_mutex_lock(&pool->lock);
+  
   ensure_slots(pool);
 
   *out_idx = -1;
 
-  if (pool->free_indices.length <= 0) return 0;
+  if (pool->free_indices.length <= 0) {
+    kl_mutex_unlock(&pool->lock);
+    return 0;
+  }
 
   kl_int64_list_pop_at(&pool->free_indices, 0, out_idx);
   int64_t idx = *out_idx;
@@ -97,7 +119,11 @@ uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx) {
 
   pool->index_check[idx] = true;
 
-  return &pool->items[idx * pool_stride(pool)];
+  uint8_t* ptr = &pool->items[idx * pool_stride(pool)];
+
+  kl_mutex_unlock(&pool->lock);
+
+  return ptr;
 }
 
 uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx) {
@@ -113,13 +139,20 @@ void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx) {
   assert(pool->initialized);
   if (pool->items == 0) return;
 
+  kl_mutex_lock(&pool->lock);
+
   assert(pool->index_check != 0);
 
   assert(idx >= 0);
   assert(idx < pool->config.count);
 
-  if (!pool->index_check[idx]) return;
+  if (!pool->index_check[idx]) {
+    kl_mutex_unlock(&pool->lock);
+    return;
+  }
 
   pool->index_check[idx] = false;
   kl_int64_list_push(&pool->free_indices, idx);
+
+  kl_mutex_unlock(&pool->lock);
 }
