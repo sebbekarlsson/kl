@@ -12,11 +12,24 @@ static void fill_free_indices(KL_int64_List* indices, int64_t count) {
   assert(indices->items != 0);
 }
 
+static int64_t pool_stride(const KL_BinaryPool* pool) {
+  int64_t sz = pool->config.element_size;
+  int64_t al = pool->config.element_alignment;
+  if (al <= 1) return sz;
+  return (sz + al - 1) & ~(al - 1);
+}
+
 static void ensure_slots(KL_BinaryPool* pool) {
   if (pool->items == 0) {
-    pool->items = kl_aligned_alloc(pool->config.element_size, pool->config.element_alignment);
+    int64_t stride = pool_stride(pool);
+    pool->items = kl_aligned_alloc(pool->config.count * stride, pool->config.element_alignment);
     assert(pool->free_indices.length == 0);
     fill_free_indices(&pool->free_indices, pool->config.count);
+
+    assert(pool->index_check == 0);
+
+    pool->index_check = (bool*)calloc(pool->config.count, sizeof(bool));
+    assert(pool->index_check != 0);
   }
   assert(pool->items != 0);
 }
@@ -31,14 +44,10 @@ void kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
     .allocator = cfg.allocator,
   });
 
-  kl_bool_hashmap_init(&pool->index_check, (KL_HashmapConfig){
-    .capacity = KL_MAX(cfg.count, 5013),
-    .collision_capacity = 4,
-    .allocator = cfg.allocator,
-  });
- 
   pool->config = cfg;
   pool->items = 0;
+  pool->index_check = 0;
+  pool->initialized = true;
 }
 
 void kl_binary_pool_destroy(KL_BinaryPool* pool) {
@@ -46,20 +55,27 @@ void kl_binary_pool_destroy(KL_BinaryPool* pool) {
 
   kl_int64_list_destroy(&pool->free_indices);
 
-  kl_bool_hashmap_destroy(&pool->index_check);
-  
   if (pool->items != 0) {
     free(pool->items);
+    pool->items = 0;
+
+    assert(pool->index_check != 0);
+    free(pool->index_check);
+    pool->index_check = 0;
   }
+
+  assert(pool->items == 0);
+  assert(pool->index_check == 0);
 
   memset(pool, 0, sizeof(KL_BinaryPool));
 }
 
 void kl_binary_pool_reset(KL_BinaryPool* pool) {
   assert(pool->initialized);
-  if (pool->items != 0) {
-    memset(pool->items, 0, pool->config.count * pool->config.element_size);
-  }
+  if (pool->items == 0) return;
+
+  memset(pool->items, 0, pool->config.count * pool_stride(pool));
+  memset(pool->index_check, 0, pool->config.count * sizeof(bool));
   kl_int64_list_reset(&pool->free_indices);
   fill_free_indices(&pool->free_indices, pool->config.count);
 }
@@ -79,9 +95,9 @@ uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx) {
 
   assert(pool->items != 0);
 
-  kl_bool_hashmap_set(&pool->index_check, KL_BLOB_T(int64_t, idx), true);
+  pool->index_check[idx] = true;
 
-  return &pool->items[idx];
+  return &pool->items[idx * pool_stride(pool)];
 }
 
 uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx) {
@@ -90,16 +106,20 @@ uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx) {
   assert(idx >= 0);
   assert(idx < pool->config.count);
 
-  return &pool->items[idx];
+  return &pool->items[idx * pool_stride(pool)];
 }
 
 void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx) {
   assert(pool->initialized);
-  if (pool->free_indices.length <= 0) return;
   if (pool->items == 0) return;
 
-  if (!kl_bool_hashmap_has(&pool->index_check, KL_BLOB_T(int64_t, idx))) return;
-  
-  kl_bool_hashmap_unset(&pool->index_check, KL_BLOB_T(int64_t, idx));
-  
+  assert(pool->index_check != 0);
+
+  assert(idx >= 0);
+  assert(idx < pool->config.count);
+
+  if (!pool->index_check[idx]) return;
+
+  pool->index_check[idx] = false;
+  kl_int64_list_push(&pool->free_indices, idx);
 }

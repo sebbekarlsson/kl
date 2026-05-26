@@ -163,6 +163,26 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_cli_get_arg_space_syntax),
     KL_TEST_ENTRY(test_cli_get_arg_equals_syntax),
     KL_TEST_ENTRY(test_cli_get_arg_quoted_values),
+
+    KL_TEST_ENTRY(test_binary_pool_init_destroy),
+    KL_TEST_ENTRY(test_binary_pool_double_init_is_noop),
+    KL_TEST_ENTRY(test_binary_pool_acquire_basic),
+    KL_TEST_ENTRY(test_binary_pool_acquire_returns_distinct_slots),
+    KL_TEST_ENTRY(test_binary_pool_acquire_respects_element_stride),
+    KL_TEST_ENTRY(test_binary_pool_acquire_pads_size_to_alignment),
+    KL_TEST_ENTRY(test_binary_pool_write_round_trip),
+    KL_TEST_ENTRY(test_binary_pool_struct_payload_round_trip),
+    KL_TEST_ENTRY(test_binary_pool_acquire_exhausted_returns_zero),
+    KL_TEST_ENTRY(test_binary_pool_get_slot_before_acquire_returns_zero),
+    KL_TEST_ENTRY(test_binary_pool_get_slot_matches_acquire),
+    KL_TEST_ENTRY(test_binary_pool_release_then_reacquire),
+    KL_TEST_ENTRY(test_binary_pool_release_unacquired_is_noop),
+    KL_TEST_ENTRY(test_binary_pool_release_double_is_noop),
+    KL_TEST_ENTRY(test_binary_pool_release_before_acquire_is_safe),
+    KL_TEST_ENTRY(test_binary_pool_exhaust_then_release_all),
+    KL_TEST_ENTRY(test_binary_pool_reset_marks_all_free),
+    KL_TEST_ENTRY(test_binary_pool_reset_before_acquire_is_safe),
+    KL_TEST_ENTRY(test_binary_pool_count_one_pool),
   };
 
   int64_t n_tests = KL_ARRAY_LEN(tests);

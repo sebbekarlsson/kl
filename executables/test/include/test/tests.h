@@ -189,4 +189,25 @@ void test_cli_get_arg_space_syntax(KL_TestFunctionContext* ctx);
 void test_cli_get_arg_equals_syntax(KL_TestFunctionContext* ctx);
 void test_cli_get_arg_quoted_values(KL_TestFunctionContext* ctx);
 
+/* ===================== binary_pool (test_binary_pool.c) ===================== */
+void test_binary_pool_init_destroy();
+void test_binary_pool_double_init_is_noop();
+void test_binary_pool_acquire_basic();
+void test_binary_pool_acquire_returns_distinct_slots();
+void test_binary_pool_acquire_respects_element_stride();
+void test_binary_pool_acquire_pads_size_to_alignment();
+void test_binary_pool_write_round_trip();
+void test_binary_pool_struct_payload_round_trip();
+void test_binary_pool_acquire_exhausted_returns_zero();
+void test_binary_pool_get_slot_before_acquire_returns_zero();
+void test_binary_pool_get_slot_matches_acquire();
+void test_binary_pool_release_then_reacquire();
+void test_binary_pool_release_unacquired_is_noop();
+void test_binary_pool_release_double_is_noop();
+void test_binary_pool_release_before_acquire_is_safe();
+void test_binary_pool_exhaust_then_release_all();
+void test_binary_pool_reset_marks_all_free();
+void test_binary_pool_reset_before_acquire_is_safe();
+void test_binary_pool_count_one_pool();
+
 #endif

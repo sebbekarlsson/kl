@@ -2,7 +2,6 @@
 #define KL_BINARY_POOL_H
 
 #include <kl/templates/list/int64_list.h>
-#include <kl/templates/hashmap/bool_hashmap.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -21,7 +20,7 @@ typedef struct {
   uint8_t* items;
   KL_int64_List free_indices;
 
-  KL_bool_Hashmap index_check;
+  bool* index_check;
 } KL_BinaryPool;
 
 void kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg);
