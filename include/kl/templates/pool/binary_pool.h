@@ -20,6 +20,7 @@ typedef struct {
   
   uint8_t* items;
   KL_int64_List free_indices;
+  KL_int64_List taken_indices;
 
   bool* index_check;
 

@@ -47,6 +47,11 @@ bool kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
     .capacity = cfg.count,
     .allocator = cfg.allocator,
   });
+  
+  kl_int64_list_init(&pool->taken_indices, (KL_ListConfig){
+    .capacity = cfg.count,
+    .allocator = cfg.allocator,
+  });
 
   pool->config = cfg;
   pool->items = 0;
@@ -62,6 +67,7 @@ void kl_binary_pool_destroy(KL_BinaryPool* pool) {
   kl_mutex_lock(&pool->lock);
   
   kl_int64_list_destroy(&pool->free_indices);
+  kl_int64_list_destroy(&pool->taken_indices);
 
   if (pool->items != 0) {
     free(pool->items);
@@ -91,6 +97,7 @@ void kl_binary_pool_reset(KL_BinaryPool* pool) {
   memset(pool->items, 0, pool->config.count * pool_stride(pool));
   memset(pool->index_check, 0, pool->config.count * sizeof(bool));
   kl_int64_list_reset(&pool->free_indices);
+  kl_int64_list_reset(&pool->taken_indices);
   fill_free_indices(&pool->free_indices, pool->config.count);
   
   kl_mutex_unlock(&pool->lock);
@@ -120,6 +127,8 @@ uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx) {
   pool->index_check[idx] = true;
 
   uint8_t* ptr = &pool->items[idx * pool_stride(pool)];
+
+  kl_int64_list_push(&pool->taken_indices, idx);
 
   kl_mutex_unlock(&pool->lock);
 
@@ -153,6 +162,10 @@ void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx) {
 
   pool->index_check[idx] = false;
   kl_int64_list_push(&pool->free_indices, idx);
+
+  int64_t idx_idx = kl_int64_list_index_of(&pool->taken_indices, idx);
+  assert(idx_idx >= 0);
+  kl_int64_list_pop_at(&pool->taken_indices, idx_idx, 0);
 
   kl_mutex_unlock(&pool->lock);
 }
