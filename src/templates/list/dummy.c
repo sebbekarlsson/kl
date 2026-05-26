@@ -151,3 +151,18 @@ bool kl_NAME_list_includes(KL_NAME_List *list, T_X item) {
 
   return false;
 }
+
+int64_t kl_NAME_list_index_of(KL_NAME_List* list, T_X item) {
+  if (list == 0) return -1;
+  
+  assert(list->initialized);
+  
+  if (list->length <= 0 || list->items == 0) return -1;
+
+  for (int64_t i = 0; i < list->length; i++) {
+    T_X v = list->items[i];
+    if (memcmp(&v, &item, sizeof(T_X)) == 0) return i;
+  }
+
+  return -1;
+}

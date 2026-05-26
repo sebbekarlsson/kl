@@ -36,7 +36,8 @@ This file was automatically generated and must not be modified directly.
   int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                  \
   int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);  \
   void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);       \
-  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);
+  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);            \
+  int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item);
 
 
 
@@ -155,6 +156,18 @@ This file was automatically generated and must not be modified directly.
         return true;                                                                             \
     }                                                                                            \
     return false;                                                                                \
+  }                                                                                              \
+  int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item) {                            \
+    if (list == 0) return -1;                                                                    \
+                                                                                                 \
+    assert(list->initialized);                                                                   \
+                                                                                                 \
+    if (list->length <= 0 || list->items == 0) return -1;                                        \
+    for (int64_t i = 0; i < list->length; i++) {                                                 \
+      T v = list->items[i];                                                                      \
+      if (memcmp(&v, &item, sizeof(T)) == 0) return i;                                           \
+    }                                                                                            \
+    return -1;                                                                                   \
   }
 
 /* generated */
