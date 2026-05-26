@@ -38,12 +38,12 @@ void test_binary_pool_init_destroy() {
   KL_TEST_EXPECT_EQ_INT((int)fx.pool.config.element_size, (int)sizeof(int64_t));
   KL_TEST_EXPECT_EQ_INT((int)fx.pool.config.element_alignment, (int)_Alignof(int64_t));
   KL_TEST_ASSERT(fx.pool.items == 0, "items deferred until first acquire");
-  KL_TEST_ASSERT(fx.pool.index_check == 0, "index_check deferred until first acquire");
+  KL_TEST_ASSERT(fx.pool.taken_pos == 0, "taken_pos deferred until first acquire");
 
   kl_binary_pool_destroy(&fx.pool);
   KL_TEST_ASSERT(fx.pool.initialized == false, "initialized cleared after destroy");
   KL_TEST_ASSERT(fx.pool.items == 0, "items cleared after destroy");
-  KL_TEST_ASSERT(fx.pool.index_check == 0, "index_check cleared after destroy");
+  KL_TEST_ASSERT(fx.pool.taken_pos == 0, "taken_pos cleared after destroy");
 
   kl_allocator_destroy(&fx.a);
 }
@@ -76,8 +76,8 @@ void test_binary_pool_acquire_basic() {
   KL_TEST_ASSERT(slot != 0, "acquire returns non-null slot");
   KL_TEST_ASSERT(idx >= 0 && idx < 8, "out_idx is in range");
   KL_TEST_ASSERT(fx.pool.items != 0, "items allocated after first acquire");
-  KL_TEST_ASSERT(fx.pool.index_check != 0, "index_check allocated after first acquire");
-  KL_TEST_ASSERT(fx.pool.index_check[idx] == true, "acquired slot marked checked");
+  KL_TEST_ASSERT(fx.pool.taken_pos != 0, "taken_pos allocated after first acquire");
+  KL_TEST_ASSERT(fx.pool.taken_pos[idx] >= 0, "acquired slot recorded in taken_pos");
 
   kl_test_bp_teardown(&fx);
 }
@@ -108,8 +108,9 @@ void test_binary_pool_acquire_respects_element_stride() {
   uint8_t* p1 = kl_binary_pool_acquire_slot(&fx.pool, &i1);
   KL_TEST_ASSERT(p0 != 0 && p1 != 0, "two acquires succeed");
 
-  // free_indices is a FIFO popped from index 0, so i0=0, i1=1 — adjacent slots.
-  // Their pointer delta must equal the per-element stride (here 24).
+  // Two consecutive acquires must return adjacent slots regardless of which
+  // order free_indices hands them out. Their pointer delta must equal the
+  // per-element stride (here 24).
   ptrdiff_t delta = (i1 > i0) ? (p1 - p0) : (p0 - p1);
   KL_TEST_EXPECT_EQ_INT((int)delta, 24);
 
@@ -240,7 +241,7 @@ void test_binary_pool_release_then_reacquire() {
   KL_TEST_ASSERT(kl_binary_pool_acquire_slot(&fx.pool, &junk) == 0, "exhausted");
 
   kl_binary_pool_release_slot(&fx.pool, i0);
-  KL_TEST_ASSERT(fx.pool.index_check[i0] == false, "index_check cleared on release");
+  KL_TEST_ASSERT(fx.pool.taken_pos[i0] == -1, "taken_pos cleared on release");
 
   int64_t i2 = -1;
   uint8_t* p2 = kl_binary_pool_acquire_slot(&fx.pool, &i2);
@@ -337,9 +338,9 @@ void test_binary_pool_reset_marks_all_free() {
   // Slot memory zeroed.
   int64_t* g = (int64_t*)kl_binary_pool_get_slot(&fx.pool, 0);
   KL_TEST_EXPECT_EQ_INT((int)*g, 0);
-  // index_check cleared.
+  // taken_pos cleared.
   for (int i = 0; i < 4; i++) {
-    KL_TEST_ASSERT(fx.pool.index_check[i] == false, "index_check cleared on reset");
+    KL_TEST_ASSERT(fx.pool.taken_pos[i] == -1, "taken_pos cleared on reset");
   }
 
   // After reset all slots reacquirable.

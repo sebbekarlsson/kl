@@ -26,10 +26,13 @@ static void ensure_slots(KL_BinaryPool* pool) {
     assert(pool->free_indices.length == 0);
     fill_free_indices(&pool->free_indices, pool->config.count);
 
-    assert(pool->index_check == 0);
+    assert(pool->taken_pos == 0);
 
-    pool->index_check = (bool*)calloc(pool->config.count, sizeof(bool));
-    assert(pool->index_check != 0);
+    pool->taken_pos = (int64_t*)calloc(pool->config.count, sizeof(int64_t));
+    assert(pool->taken_pos != 0);
+    // 0xff bytes → int64_t -1 (two's complement); calloc-zeroed bytes
+    // would mean "position 0", which is a valid taken position.
+    memset(pool->taken_pos, 0xff, pool->config.count * sizeof(int64_t));
   }
   assert(pool->items != 0);
 }
@@ -55,7 +58,7 @@ bool kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg) {
 
   pool->config = cfg;
   pool->items = 0;
-  pool->index_check = 0;
+  pool->taken_pos = 0;
   pool->initialized = true;
 
   return true;
@@ -73,13 +76,13 @@ void kl_binary_pool_destroy(KL_BinaryPool* pool) {
     free(pool->items);
     pool->items = 0;
 
-    assert(pool->index_check != 0);
-    free(pool->index_check);
-    pool->index_check = 0;
+    assert(pool->taken_pos != 0);
+    free(pool->taken_pos);
+    pool->taken_pos = 0;
   }
 
   assert(pool->items == 0);
-  assert(pool->index_check == 0);
+  assert(pool->taken_pos == 0);
 
   kl_mutex_unlock(&pool->lock);
   kl_mutex_destroy(&pool->lock);
@@ -95,7 +98,7 @@ void kl_binary_pool_reset(KL_BinaryPool* pool) {
   kl_mutex_lock(&pool->lock);
   
   memset(pool->items, 0, pool->config.count * pool_stride(pool));
-  memset(pool->index_check, 0, pool->config.count * sizeof(bool));
+  memset(pool->taken_pos, 0xff, pool->config.count * sizeof(int64_t));
   kl_int64_list_reset(&pool->free_indices);
   kl_int64_list_reset(&pool->taken_indices);
   fill_free_indices(&pool->free_indices, pool->config.count);
@@ -117,18 +120,17 @@ uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx) {
     return 0;
   }
 
-  kl_int64_list_pop_at(&pool->free_indices, 0, out_idx);
+  kl_int64_list_pop(&pool->free_indices, out_idx);
   int64_t idx = *out_idx;
   assert(idx >= 0);
   assert(idx < pool->config.count);
 
   assert(pool->items != 0);
 
-  pool->index_check[idx] = true;
+  pool->taken_pos[idx] = pool->taken_indices.length;
+  kl_int64_list_push(&pool->taken_indices, idx);
 
   uint8_t* ptr = &pool->items[idx * pool_stride(pool)];
-
-  kl_int64_list_push(&pool->taken_indices, idx);
 
   kl_mutex_unlock(&pool->lock);
 
@@ -150,22 +152,31 @@ void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx) {
 
   kl_mutex_lock(&pool->lock);
 
-  assert(pool->index_check != 0);
+  assert(pool->taken_pos != 0);
 
   assert(idx >= 0);
   assert(idx < pool->config.count);
 
-  if (!pool->index_check[idx]) {
+  int64_t pos = pool->taken_pos[idx];
+  if (pos < 0) {
     kl_mutex_unlock(&pool->lock);
     return;
   }
 
-  pool->index_check[idx] = false;
-  kl_int64_list_push(&pool->free_indices, idx);
+  // Swap-and-pop on taken_indices: move the trailing entry into `pos`,
+  // fix up its taken_pos, then shrink. Reorders taken_indices but the
+  // pool only guarantees membership, not order.
+  int64_t last_pos = pool->taken_indices.length - 1;
+  assert(pos <= last_pos);
+  if (pos != last_pos) {
+    int64_t last_idx = pool->taken_indices.items[last_pos];
+    pool->taken_indices.items[pos] = last_idx;
+    pool->taken_pos[last_idx] = pos;
+  }
+  pool->taken_indices.length -= 1;
+  pool->taken_pos[idx] = -1;
 
-  int64_t idx_idx = kl_int64_list_index_of(&pool->taken_indices, idx);
-  assert(idx_idx >= 0);
-  kl_int64_list_pop_at(&pool->taken_indices, idx_idx, 0);
+  kl_int64_list_push(&pool->free_indices, idx);
 
   kl_mutex_unlock(&pool->lock);
 }

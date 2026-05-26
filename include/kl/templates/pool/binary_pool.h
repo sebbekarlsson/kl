@@ -22,7 +22,10 @@ typedef struct {
   KL_int64_List free_indices;
   KL_int64_List taken_indices;
 
-  bool* index_check;
+  // For each slot: -1 if free, otherwise the position of that slot's index
+  // inside `taken_indices`. Doubles as the "is taken?" check and as a
+  // direct pointer for O(1) swap-and-pop on release.
+  int64_t* taken_pos;
 
   KL_Mutex lock;
 } KL_BinaryPool;
