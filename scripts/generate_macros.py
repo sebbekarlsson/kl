@@ -157,6 +157,12 @@ if __name__ == '__main__':
         typename=f'{PREFIX}Int64Pair',
         name='int64_pair'
     )
+    generate_type(
+        includes=[f'#include <{NAME}/string/string.h>'],
+        template_name='list',
+        typename=f'{PREFIX}StrConst',
+        name='str_const'
+    )
 
     # queue
     generate(
