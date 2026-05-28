@@ -19,19 +19,27 @@ typedef struct {
   bool initialized;
 } KL_NAME_Queue;
 
-int kl_NAME_queue_init(KL_NAME_Queue* queue, KL_QueueConfig cfg);
+bool kl_NAME_queue_init(KL_NAME_Queue* queue, KL_QueueConfig cfg);
 
 void kl_NAME_queue_destroy(KL_NAME_Queue* queue);
 
 void kl_NAME_queue_reset(KL_NAME_Queue* queue);
 
-int kl_NAME_queue_push(KL_NAME_Queue* queue, T_X item);
+bool kl_NAME_queue_push(KL_NAME_Queue* queue, T_X item);
 
-int kl_NAME_queue_pop_first(KL_NAME_Queue* queue, T_X* out);
+bool kl_NAME_queue_try_push(KL_NAME_Queue* queue, T_X item);
 
-int kl_NAME_queue_pop_last(KL_NAME_Queue* queue, T_X* out);
+bool kl_NAME_queue_pop_first(KL_NAME_Queue* queue, T_X* out);
 
-int kl_NAME_queue_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out);
+bool kl_NAME_queue_pop_last(KL_NAME_Queue* queue, T_X* out);
+
+bool kl_NAME_queue_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out);
+
+bool kl_NAME_queue_try_pop_first(KL_NAME_Queue* queue, T_X* out);
+
+bool kl_NAME_queue_try_pop_last(KL_NAME_Queue* queue, T_X* out);
+
+bool kl_NAME_queue_try_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out);
 
 void kl_NAME_queue_grow(KL_NAME_Queue *queue, int64_t n_slots);
 #endif

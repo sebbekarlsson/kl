@@ -5,10 +5,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-int kl_NAME_queue_init(KL_NAME_Queue *queue, KL_QueueConfig cfg) {
+bool kl_NAME_queue_init(KL_NAME_Queue *queue, KL_QueueConfig cfg) {
   assert(cfg.capacity > 0);
   if (queue->initialized)
-    return 1;
+    return true;
 
   queue->config = cfg;
   queue->items = 0;
@@ -19,7 +19,7 @@ int kl_NAME_queue_init(KL_NAME_Queue *queue, KL_QueueConfig cfg) {
   kl_mutex_init(&queue->lock);
 
   queue->initialized = true;
-  return 1;
+  return true;
 }
 
 void kl_NAME_queue_destroy(KL_NAME_Queue *queue) {
@@ -75,15 +75,13 @@ void kl_NAME_queue_grow(KL_NAME_Queue *queue, int64_t n_slots) {
   queue->n_slots_allocated += n_slots;
 }
 
-int kl_NAME_queue_push(KL_NAME_Queue *queue, T_X item) {
+static inline bool kl_NAME_queue_push_(KL_NAME_Queue *queue, T_X item) {
   assert(queue->initialized == true);
   assert(queue->current_capacity > 0);
   
-  kl_mutex_lock(&queue->lock);
 
   if (queue->config.max_length > 0 && queue->length >= queue->config.max_length) {
-    kl_mutex_unlock(&queue->lock);
-    return 0;
+    return false;
   }
 
   int64_t avail = queue->n_slots_allocated - queue->length;
@@ -95,27 +93,31 @@ int kl_NAME_queue_push(KL_NAME_Queue *queue, T_X item) {
 
   queue->items[queue->length++] = item;
 
+
+  return true;
+}
+
+bool kl_NAME_queue_push(KL_NAME_Queue *queue, T_X item) {
+  kl_mutex_lock(&queue->lock);
+  bool ret = kl_NAME_queue_push_(queue, item);
   kl_mutex_unlock(&queue->lock);
-
-  return 1;
+  return ret;
 }
 
-int kl_NAME_queue_pop_first(KL_NAME_Queue* queue, T_X* out) {
-  return kl_NAME_queue_pop_at(queue, 0, out);
+
+bool kl_NAME_queue_try_push(KL_NAME_Queue* queue, T_X item) {
+  if (!kl_mutex_trylock(&queue->lock)) return false;
+  bool ret = kl_NAME_queue_push_(queue, item);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
 }
 
-int kl_NAME_queue_pop_last(KL_NAME_Queue* queue, T_X* out) {
-  return kl_NAME_queue_pop_at(queue, queue->length-1, out);
-}
 
-int kl_NAME_queue_pop_at(KL_NAME_Queue *queue, int64_t idx, T_X *out) {
+static inline bool kl_NAME_queue_pop_at_(KL_NAME_Queue *queue, int64_t idx, T_X *out) {
   assert(queue->initialized == true);
 
-  kl_mutex_lock(&queue->lock);
-
   if (queue->length <= 0 || queue->items == 0 || idx < 0) {
-    kl_mutex_unlock(&queue->lock);
-    return 0;
+    return false;
   }
 
   assert(idx < queue->length);
@@ -131,7 +133,48 @@ int kl_NAME_queue_pop_at(KL_NAME_Queue *queue, int64_t idx, T_X *out) {
 
   queue->length -= 1;
 
-  kl_mutex_unlock(&queue->lock);
 
-  return 1;
+  return true;
+}
+
+bool kl_NAME_queue_pop_first(KL_NAME_Queue* queue, T_X* out) {
+  kl_mutex_lock(&queue->lock);
+  bool ret = kl_NAME_queue_pop_at_(queue, 0, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_pop_last(KL_NAME_Queue* queue, T_X* out) {
+  kl_mutex_lock(&queue->lock);
+  bool ret = kl_NAME_queue_pop_at_(queue, queue->length - 1, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_pop_at(KL_NAME_Queue *queue, int64_t idx, T_X *out) {
+  kl_mutex_lock(&queue->lock);
+  bool ret = kl_NAME_queue_pop_at_(queue, idx, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_first(KL_NAME_Queue* queue, T_X* out) {
+  if (!kl_mutex_trylock(&queue->lock)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, 0, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_last(KL_NAME_Queue* queue, T_X* out) {
+  if (!kl_mutex_trylock(&queue->lock)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, queue->length - 1, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out) {
+  if (!kl_mutex_trylock(&queue->lock)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, idx, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
 }
