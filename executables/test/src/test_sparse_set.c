@@ -722,3 +722,249 @@ void test_binary_sparseset_noalloc_reset_then_reuse() {
 
   kl_binary_sparseset_destroy(&set);
 }
+
+// ---------- templated sparse_set (dummy), no allocator ----------
+// The dummy template is compiled into libkl.a as a concrete instantiation:
+// NAME is left literal and the item type is T_X (== int). These tests drive
+// the allocator-optional path (cfg.allocator == 0 falls back to
+// kl_aligned_alloc / kl_aligned_realloc / free).
+
+static void kl_test_ss_setup_noalloc(KL_NAME_SparseSet* set,
+                                     int64_t sparse_capacity, int64_t dense_capacity) {
+  *set = (KL_NAME_SparseSet){0};
+  kl_NAME_sparse_set_init(set, (KL_SparseSetConfig){
+    .sparse_capacity = sparse_capacity,
+    .dense_capacity = dense_capacity,
+    .allocator = 0,
+  });
+}
+
+void test_sparse_set_noalloc_init_destroy() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  KL_TEST_ASSERT(set.initialized == true, "initialized after init");
+  KL_TEST_ASSERT(set.config.allocator == 0, "allocator stays null");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 0);
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, 16);
+  KL_TEST_EXPECT_EQ_INT((int)set.dense_capacity, 8);
+  KL_TEST_ASSERT(set.sparse != 0, "sparse buffer allocated via kl_aligned_alloc");
+  KL_TEST_ASSERT(set.indices != 0, "indices buffer allocated via kl_aligned_alloc");
+  KL_TEST_ASSERT(set.values != 0, "values buffer allocated via kl_aligned_alloc");
+  for (int64_t i = 0; i < set.sparse_capacity; i++) {
+    KL_TEST_ASSERT(set.sparse[i] == -1, "sparse slot defaults to -1");
+  }
+
+  kl_NAME_sparse_set_destroy(&set);
+  KL_TEST_ASSERT(set.initialized == false, "initialized cleared after destroy");
+  KL_TEST_ASSERT(set.sparse == 0, "sparse pointer cleared");
+  KL_TEST_ASSERT(set.indices == 0, "indices pointer cleared");
+  KL_TEST_ASSERT(set.values == 0, "values pointer cleared");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 0);
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, 0);
+  KL_TEST_EXPECT_EQ_INT((int)set.dense_capacity, 0);
+}
+
+void test_sparse_set_noalloc_set_get_basic() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  int* p = kl_NAME_sparse_set_set(&set, 3, 12345);
+  KL_TEST_ASSERT(p != 0, "set returns non-null pointer");
+  KL_TEST_ASSERT(*p == 12345, "set returns pointer to the stored value");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 1);
+
+  int* got = kl_NAME_sparse_set_get(&set, 3);
+  KL_TEST_ASSERT(got != 0, "get returns non-null for inserted id");
+  KL_TEST_ASSERT(got == p, "get returns the same pointer as set");
+  KL_TEST_ASSERT(*got == 12345, "value round-trips");
+
+  KL_TEST_ASSERT(kl_NAME_sparse_set_get(&set, 0) == 0, "get on unset id returns null");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_get(&set, 4) == 0, "neighbouring id still null");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_set_overwrite_keeps_length() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  kl_NAME_sparse_set_set(&set, 5, 1);
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 1);
+
+  for (int i = 0; i < 10; i++) {
+    int* p = kl_NAME_sparse_set_set(&set, 5, 100 + i);
+    KL_TEST_ASSERT(p != 0 && *p == 100 + i, "overwrite returns the updated value");
+    KL_TEST_EXPECT_EQ_INT((int)set.length, 1);
+  }
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 5) == 109, "final overwrite visible");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_has_and_remove() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 4), "has=false before set");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_remove(&set, 4), "remove missing => false");
+
+  kl_NAME_sparse_set_set(&set, 4, 7);
+  KL_TEST_ASSERT(kl_NAME_sparse_set_has(&set, 4), "has=true after set");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 3), "neighbour absent");
+
+  KL_TEST_ASSERT(kl_NAME_sparse_set_remove(&set, 4), "remove existing => true");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 4), "gone after remove");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_get(&set, 4) == 0, "get null after remove");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 0);
+
+  // Out-of-range ids are rejected, not treated as present.
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, -1), "negative id => false");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_get(&set, -1) == 0, "negative id get => null");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_get(&set, set.sparse_capacity) == 0, "id == capacity get => null");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_id_zero_and_value_zero() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  // id 0 is valid and value 0 is a real stored value — neither must be
+  // confused with the -1 "absent" sentinel kept in the sparse array.
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 0), "id 0 absent initially");
+  int* p = kl_NAME_sparse_set_set(&set, 0, 0);
+  KL_TEST_ASSERT(p != 0, "set id 0 with value 0 returns non-null");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_has(&set, 0), "id 0 present after set");
+  int* got = kl_NAME_sparse_set_get(&set, 0);
+  KL_TEST_ASSERT(got != 0 && *got == 0, "value 0 round-trips as a present entry");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_remove(&set, 0), "id 0 removable");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 0), "id 0 gone after remove");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_sparse_grows_for_large_id() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 8, 8);
+
+  int64_t initial_cap = set.sparse_capacity;
+  KL_TEST_EXPECT_EQ_INT((int)initial_cap, 8);
+
+  // Forces the sparse array through kl_aligned_realloc: 8 -> 16 -> 32 -> 64 -> 128.
+  kl_NAME_sparse_set_set(&set, 100, 777);
+  KL_TEST_ASSERT(set.sparse_capacity > 100, "sparse capacity now covers id 100");
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, 128);
+
+  for (int64_t i = initial_cap; i < set.sparse_capacity; i++) {
+    if (i == 100) continue;
+    KL_TEST_ASSERT(set.sparse[i] == -1, "newly grown sparse slots default to -1");
+  }
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 100) == 777, "stored value survives the grow");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 99), "99 still absent");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_dense_grows_when_full() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 64, 4);
+
+  KL_TEST_EXPECT_EQ_INT((int)set.dense_capacity, 4);
+
+  // Multiple dense doublings push both indices and values through kl_aligned_realloc.
+  for (int i = 0; i < 20; i++) {
+    kl_NAME_sparse_set_set(&set, i, i * i);
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 20);
+  KL_TEST_ASSERT(set.dense_capacity >= 20, "dense capacity grew to fit");
+
+  for (int i = 0; i < 20; i++) {
+    int* got = kl_NAME_sparse_set_get(&set, i);
+    KL_TEST_ASSERT(got != 0 && *got == i * i, "values preserved across dense grow");
+  }
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_remove_swaps_with_last() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  // Insert ids 10,11,12,13 -> dense positions 0,1,2,3.
+  for (int i = 0; i < 4; i++) {
+    kl_NAME_sparse_set_set(&set, 10 + i, i * 100);
+  }
+
+  // Removing id 11 (dense pos 1) swaps the last element (id 13) into pos 1.
+  KL_TEST_ASSERT(kl_NAME_sparse_set_remove(&set, 11), "remove returns true");
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 3);
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 11), "11 gone");
+  KL_TEST_ASSERT(kl_NAME_sparse_set_has(&set, 13), "13 still present");
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 13) == 300, "13 value preserved through swap");
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse[13], 1);
+  KL_TEST_EXPECT_EQ_INT((int)set.indices[1], 13);
+
+  // Untouched ids still map correctly.
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 10) == 0, "10 value intact");
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 12) == 200, "12 value intact");
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_many_inserts_round_trip() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 4, 4);
+
+  enum { N = 1000 };
+  for (int i = 0; i < N; i++) {
+    kl_NAME_sparse_set_set(&set, i, i * 7 - 3);
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, N);
+  KL_TEST_ASSERT(set.sparse_capacity >= N, "sparse covers all ids");
+  KL_TEST_ASSERT(set.dense_capacity >= N, "dense covers all ids");
+
+  for (int i = 0; i < N; i++) {
+    int* got = kl_NAME_sparse_set_get(&set, i);
+    KL_TEST_ASSERT(got != 0 && *got == i * 7 - 3, "value preserved after mass insert");
+  }
+
+  // Remove every other id — swap-and-pop without an arena.
+  for (int i = 0; i < N; i += 2) {
+    KL_TEST_ASSERT(kl_NAME_sparse_set_remove(&set, i), "remove even id");
+  }
+  KL_TEST_EXPECT_EQ_INT((int)set.length, N / 2);
+  for (int i = 0; i < N; i++) {
+    if ((i & 1) == 0) {
+      KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, i), "even gone");
+    } else {
+      int* got = kl_NAME_sparse_set_get(&set, i);
+      KL_TEST_ASSERT(got != 0 && *got == i * 7 - 3, "odd survives with right value");
+    }
+  }
+
+  kl_NAME_sparse_set_destroy(&set);
+}
+
+void test_sparse_set_noalloc_reset_then_reuse() {
+  KL_NAME_SparseSet set = {0};
+  kl_test_ss_setup_noalloc(&set, 16, 8);
+
+  // Trigger a sparse grow so reset must preserve the grown capacity.
+  kl_NAME_sparse_set_set(&set, 64, 1);
+  int64_t sparse_cap = set.sparse_capacity;
+  KL_TEST_ASSERT(sparse_cap > 16, "sparse grew");
+
+  kl_NAME_sparse_set_reset(&set);
+  KL_TEST_EXPECT_EQ_INT((int)set.length, 0);
+  KL_TEST_EXPECT_EQ_INT((int)set.sparse_capacity, (int)sparse_cap);
+  KL_TEST_ASSERT(set.initialized == true, "still initialized after reset");
+  KL_TEST_ASSERT(!kl_NAME_sparse_set_has(&set, 64), "entries cleared after reset");
+
+  // Reusable after reset.
+  kl_NAME_sparse_set_set(&set, 3, 42);
+  KL_TEST_ASSERT(kl_NAME_sparse_set_has(&set, 3), "usable after reset");
+  KL_TEST_ASSERT(*kl_NAME_sparse_set_get(&set, 3) == 42, "value visible after reuse");
+
+  kl_NAME_sparse_set_destroy(&set);
+}

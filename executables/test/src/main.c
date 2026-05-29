@@ -163,6 +163,17 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_binary_sparseset_noalloc_many_inserts_round_trip),
     KL_TEST_ENTRY(test_binary_sparseset_noalloc_reset_then_reuse),
 
+    KL_TEST_ENTRY(test_sparse_set_noalloc_init_destroy),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_set_get_basic),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_set_overwrite_keeps_length),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_has_and_remove),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_id_zero_and_value_zero),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_sparse_grows_for_large_id),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_dense_grows_when_full),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_remove_swaps_with_last),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_many_inserts_round_trip),
+    KL_TEST_ENTRY(test_sparse_set_noalloc_reset_then_reuse),
+
     KL_TEST_ENTRY(test_fs_read_directory_rejects_bad_args),
     KL_TEST_ENTRY(test_fs_read_directory_lists_project_src_non_recursive),
     KL_TEST_ENTRY(test_fs_read_directory_recursive_descends_into_subdirs),

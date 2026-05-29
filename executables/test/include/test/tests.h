@@ -25,6 +25,7 @@
 #include <kl/templates/list/blob_ptr_list.h>
 #include <kl/templates/hashmap/int64_hashmap.h>
 #include <kl/templates/sparse_set/binary_sparse_set.h>
+#include <kl/templates/sparse_set/dummy.h>
 #include <kl/binary/blob.h>
 #include <kl/io/fs.h>
 #include <kl/json/tokenizer.h>
@@ -185,6 +186,18 @@ void test_binary_sparseset_noalloc_sparse_grows_for_large_id();
 void test_binary_sparseset_noalloc_dense_grows_when_full();
 void test_binary_sparseset_noalloc_many_inserts_round_trip();
 void test_binary_sparseset_noalloc_reset_then_reuse();
+
+/* ===================== sparse_set (dummy, no allocator) (test_sparse_set.c) ===================== */
+void test_sparse_set_noalloc_init_destroy();
+void test_sparse_set_noalloc_set_get_basic();
+void test_sparse_set_noalloc_set_overwrite_keeps_length();
+void test_sparse_set_noalloc_has_and_remove();
+void test_sparse_set_noalloc_id_zero_and_value_zero();
+void test_sparse_set_noalloc_sparse_grows_for_large_id();
+void test_sparse_set_noalloc_dense_grows_when_full();
+void test_sparse_set_noalloc_remove_swaps_with_last();
+void test_sparse_set_noalloc_many_inserts_round_trip();
+void test_sparse_set_noalloc_reset_then_reuse();
 
 /* ===================== fs (test_fs.c) ===================== */
 void test_fs_read_directory_rejects_bad_args();
