@@ -5,6 +5,6 @@
 typedef struct {
   int64_t sparse_capacity;
   int64_t dense_capacity;
-  KL_Allocator* allocator;
+  KL_Allocator* allocator; // optional
 } KL_SparseSetConfig;
 #endif

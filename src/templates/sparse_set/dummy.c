@@ -1,22 +1,35 @@
 #include <kl/templates/sparse_set/dummy.h>
+#include <kl/memory/alloc.h>
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 
 
 static void kl_NAME_sparse_set_ensure_alloc(KL_NAME_SparseSet* set) {
   if (set->sparse != 0) return;
   KL_Allocator* alloc = set->config.allocator;
-  set->sparse = (int64_t*)kl_allocator_malloc_tracked_aligned(alloc, set->sparse_capacity * (int64_t)sizeof(int64_t), _Alignof(int64_t), &set->_sparse_ref);
-  memset(set->sparse, 0xFF, (size_t)(set->sparse_capacity * (int64_t)sizeof(int64_t)));
-  set->indices = (int64_t*)kl_allocator_malloc_tracked_aligned(alloc, set->dense_capacity * (int64_t)sizeof(int64_t), _Alignof(int64_t), &set->_indices_ref);
-  set->values = (T_X*)kl_allocator_malloc_tracked_aligned(alloc, set->dense_capacity * (int64_t)sizeof(T_X), _Alignof(T_X), &set->_values_ref);
+  int64_t sparse_bytes = set->sparse_capacity * (int64_t)sizeof(int64_t);
+  int64_t indices_bytes = set->dense_capacity * (int64_t)sizeof(int64_t);
+  int64_t values_bytes = set->dense_capacity * (int64_t)sizeof(T_X);
+  if (alloc != 0) {
+    set->sparse = (int64_t*)kl_allocator_malloc_tracked_aligned(alloc, sparse_bytes, _Alignof(int64_t), &set->_sparse_ref);
+    set->indices = (int64_t*)kl_allocator_malloc_tracked_aligned(alloc, indices_bytes, _Alignof(int64_t), &set->_indices_ref);
+    set->values = (T_X*)kl_allocator_malloc_tracked_aligned(alloc, values_bytes, _Alignof(T_X), &set->_values_ref);
+  } else {
+    set->sparse = (int64_t*)kl_aligned_alloc((size_t)sparse_bytes, _Alignof(int64_t));
+    set->indices = (int64_t*)kl_aligned_alloc((size_t)indices_bytes, _Alignof(int64_t));
+    set->values = (T_X*)kl_aligned_alloc((size_t)values_bytes, _Alignof(T_X));
+  }
+  assert(set->sparse != 0);
+  assert(set->indices != 0);
+  assert(set->values != 0);
+  memset(set->sparse, 0xFF, (size_t)sparse_bytes);
 }
 
 void kl_NAME_sparse_set_init(KL_NAME_SparseSet* set, KL_SparseSetConfig cfg) {
   if (set->initialized) return;
   assert(cfg.sparse_capacity > 0);
   assert(cfg.dense_capacity > 0);
-  assert(cfg.allocator != 0);
   set->config = cfg;
   set->length = 0;
   set->sparse_capacity = cfg.sparse_capacity;
@@ -28,6 +41,11 @@ void kl_NAME_sparse_set_init(KL_NAME_SparseSet* set, KL_SparseSetConfig cfg) {
 
 void kl_NAME_sparse_set_destroy(KL_NAME_SparseSet* set) {
   if (!set->initialized) return;
+  if (set->config.allocator == 0) {
+    if (set->sparse != 0) free(set->sparse);
+    if (set->indices != 0) free(set->indices);
+    if (set->values != 0) free(set->values);
+  }
   set->sparse = 0;
   set->indices = 0;
   set->values = 0;
@@ -59,7 +77,11 @@ T_X* kl_NAME_sparse_set_set(KL_NAME_SparseSet* set, int64_t id, T_X value) {
     while (new_sparse_cap <= id) new_sparse_cap *= 2;
     int64_t old_size = set->sparse_capacity * (int64_t)sizeof(int64_t);
     int64_t new_size = new_sparse_cap * (int64_t)sizeof(int64_t);
-    set->sparse = (int64_t*)kl_allocator_realloc_aligned(alloc, new_size, _Alignof(int64_t), &set->_sparse_ref);
+    if (alloc != 0) {
+      set->sparse = (int64_t*)kl_allocator_realloc_aligned(alloc, new_size, _Alignof(int64_t), &set->_sparse_ref);
+    } else {
+      set->sparse = (int64_t*)kl_aligned_realloc(set->sparse, (size_t)new_size, _Alignof(int64_t));
+    }
     memset((uint8_t*)set->sparse + old_size, 0xFF, (size_t)(new_size - old_size));
     set->sparse_capacity = new_sparse_cap;
   }
@@ -71,8 +93,13 @@ T_X* kl_NAME_sparse_set_set(KL_NAME_SparseSet* set, int64_t id, T_X value) {
 
   if (set->length >= set->dense_capacity) {
     int64_t new_dense_cap = set->dense_capacity * 2;
-    set->indices = (int64_t*)kl_allocator_realloc_aligned(alloc, new_dense_cap * (int64_t)sizeof(int64_t), _Alignof(int64_t), &set->_indices_ref);
-    set->values = (T_X*)kl_allocator_realloc_aligned(alloc, new_dense_cap * (int64_t)sizeof(T_X), _Alignof(T_X), &set->_values_ref);
+    if (alloc != 0) {
+      set->indices = (int64_t*)kl_allocator_realloc_aligned(alloc, new_dense_cap * (int64_t)sizeof(int64_t), _Alignof(int64_t), &set->_indices_ref);
+      set->values = (T_X*)kl_allocator_realloc_aligned(alloc, new_dense_cap * (int64_t)sizeof(T_X), _Alignof(T_X), &set->_values_ref);
+    } else {
+      set->indices = (int64_t*)kl_aligned_realloc(set->indices, (size_t)(new_dense_cap * (int64_t)sizeof(int64_t)), _Alignof(int64_t));
+      set->values = (T_X*)kl_aligned_realloc(set->values, (size_t)(new_dense_cap * (int64_t)sizeof(T_X)), _Alignof(T_X));
+    }
     set->dense_capacity = new_dense_cap;
   }
 
