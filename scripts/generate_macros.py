@@ -190,6 +190,12 @@ if __name__ == '__main__':
     generate_type(
         includes=['#include <stdint.h>'],
         template_name='hashmap',
+        typename='uint64_t',
+        name='uint64'
+    )
+    generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='hashmap',
         typename='uint32_t',
         name='uint32'
     )
