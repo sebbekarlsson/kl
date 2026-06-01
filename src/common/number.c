@@ -17,6 +17,10 @@ uint64_t kl_f64_to_uint64(double x) {
   return p.i;
 }
 
+int64_t kl_amod_i64(int64_t x, int64_t d) {
+  return ((x % d) + d) % d;
+}
+
 bool kl_is_unsafe_f32(float x) {
   return isnanf(x) || isinff(x);
 }
