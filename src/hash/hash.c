@@ -52,3 +52,21 @@ float kl_hash_f32(float x) {
 double kl_hash_f64(double x) {
   return kl_hash_uint64_f64(kl_f64_to_uint64(x));
 }
+
+////////////////////////////////
+
+float kl_hash_uint32_next_f32(uint32_t* seed, float min, float max) {
+  return kl_lerp_f32(min, max, kl_hash_uint32_f32_ptr(seed)); 
+}
+
+int32_t kl_hash_uint32_next_int32(uint32_t* seed, int32_t min, int32_t max) {
+  /* number of integers in [min, max]; unsigned math avoids signed overflow
+   * and is correct in two's complement even when min/max straddle zero. */
+  uint32_t span = (uint32_t)max - (uint32_t)min + 1u;
+  uint32_t r = kl_hash_uint32_ptr(seed);
+  if (span == 0u) {
+    /* min..max spans the entire int32 range; every value is valid. */
+    return (int32_t)r;
+  }
+  return (int32_t)((uint32_t)min + (r % span));
+}
