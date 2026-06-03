@@ -9,6 +9,8 @@
 #define KL_PI 3.141592653589793
 #define KL_TAU 6.283185307179586
 
+typedef float (*KL_F32Fn)(float x);
+
 uint32_t kl_f32_to_uint32(float x);
 
 uint64_t kl_f64_to_uint64(double x);

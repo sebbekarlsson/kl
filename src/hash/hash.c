@@ -19,6 +19,19 @@ uint64_t kl_hash_uint64(uint64_t x) {
   return x;
 }
 
+uint32_t kl_hash_uint32_n(uint32_t* items, int32_t length) {
+  if (items == 0) return 0;
+
+  uint32_t h = 0xc3e4be18U;          // arbitrary nonzero seed
+
+  for (int32_t i = 0; i < length; i++) {
+    h ^= items[i];
+    h = kl_hash_uint32(h);           // full avalanche before folding the next item
+  }
+
+  return h;
+}
+
 uint32_t kl_hash_uint32_ptr(uint32_t* x) {
   *x += 0x9e3779b9U;
   return kl_hash_uint32(*x);

@@ -8,6 +8,8 @@ uint32_t kl_hash_uint32(uint32_t x);
 
 uint64_t kl_hash_uint64(uint64_t x);
 
+uint32_t kl_hash_uint32_n(uint32_t* items, int32_t length);
+
 uint32_t kl_hash_uint32_ptr(uint32_t* x);
 
 uint64_t kl_hash_uint64_ptr(uint64_t* x);

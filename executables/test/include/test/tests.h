@@ -32,6 +32,11 @@
 #include <kl/json/parser.h>
 #include <kl/path/path.h>
 #include <kl/cli/args.h>
+#include <kl/math/vec2.h>
+#include <kl/math/vec3.h>
+#include <kl/math/vec4.h>
+#include <kl/math/macros.h>
+#include <kl/noise/noise.h>
 
 /* ===================== string (test_string.c) ===================== */
 void test_str_const_eq();
@@ -239,5 +244,64 @@ void test_binary_pool_exhaust_then_release_all();
 void test_binary_pool_reset_marks_all_free();
 void test_binary_pool_reset_before_acquire_is_safe();
 void test_binary_pool_count_one_pool();
+
+/* ===================== vec2 (test_vec.c) ===================== */
+void test_vec2_constructors();
+void test_vec2_mag();
+void test_vec2_dot();
+void test_vec2_unit();
+void test_vec2_scale();
+void test_vec2_add();
+void test_vec2_sub();
+void test_vec2_mul();
+void test_vec2_div();
+void test_vec2_lerp();
+
+/* ===================== vec3 (test_vec.c) ===================== */
+void test_vec3_constructors();
+void test_vec3_mag();
+void test_vec3_dot();
+void test_vec3_unit();
+void test_vec3_scale();
+void test_vec3_add();
+void test_vec3_sub();
+void test_vec3_mul();
+void test_vec3_div();
+void test_vec3_lerp();
+
+/* ===================== vec4 (test_vec.c) ===================== */
+void test_vec4_constructors();
+void test_vec4_mag();
+void test_vec4_dot();
+void test_vec4_unit();
+void test_vec4_scale();
+void test_vec4_add();
+void test_vec4_sub();
+void test_vec4_mul();
+void test_vec4_div();
+void test_vec4_lerp();
+
+/* ===================== noise (test_noise.c) ===================== */
+void test_noise_value_2d_deterministic();
+void test_noise_value_2d_range();
+void test_noise_value_2d_continuity();
+void test_noise_value_2d_seed_sensitivity();
+void test_noise_perlin_2d_deterministic();
+void test_noise_perlin_2d_range();
+void test_noise_perlin_2d_zero_at_lattice();
+void test_noise_perlin_2d_continuity();
+void test_noise_perlin_2d_zero_mean();
+void test_noise_perlin_2d_seed_sensitivity();
+void test_noise_simplex_2d_deterministic();
+void test_noise_simplex_2d_range();
+void test_noise_simplex_2d_continuity();
+void test_noise_simplex_2d_zero_mean();
+void test_noise_simplex_2d_seed_sensitivity();
+void test_noise_value_2d_fbm_single_octave_equals_base();
+void test_noise_value_2d_fbm_range();
+void test_noise_perlin_2d_fbm_single_octave_equals_base();
+void test_noise_perlin_2d_fbm_range();
+void test_noise_simplex_2d_fbm_single_octave_equals_base();
+void test_noise_simplex_2d_fbm_range();
 
 #endif
