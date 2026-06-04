@@ -2,15 +2,6 @@
 #include <kl/cli/args.h>
 
 
-static void run_test(KL_TestEntry* entry) {
-  KL_TestFunctionContext ctx = {0};
-  ctx.current_suite_name = entry->name;
-  g_current_ctx = &ctx;
-  KL_TEST_BEGIN(entry->name);
-  entry->fn(&ctx);
-  KL_TEST_END(entry->name);
-  g_current_ctx = NULL;
-}
 
 int main(int argc, char* argv[]) {
   KL_TestEntry tests[] = {
@@ -279,7 +270,7 @@ int main(int argc, char* argv[]) {
     for (int64_t i = 0; i < n_tests; i++) {
       KL_TestEntry* entry = &tests[i];
       if (kl_str_const_eq(test_to_run, KL_STR_CONST(entry->name))) {
-        run_test(entry);
+        kl_test_run_entry(entry);
         found = true;
         break;
       }
@@ -291,7 +282,7 @@ int main(int argc, char* argv[]) {
   } else {
     for (int64_t i = 0; i < n_tests; i++) {
       KL_TestEntry* entry = &tests[i];
-      run_test(entry);
+      kl_test_run_entry(entry);
     }
   }
 

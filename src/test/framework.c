@@ -1,4 +1,4 @@
-#include <test/framework.h>
+#include <kl/test/framework.h>
 
 // Shared color state — see framework.h.
 bool g_use_color = true;
@@ -75,4 +75,14 @@ void kl_test_print_summary(void) {
     printf("%.2fs\n", (double)total_time_us / 1000000.0);
   }
   printf("\n");
+}
+
+void kl_test_run_entry(KL_TestEntry* entry) {
+  KL_TestFunctionContext ctx = {0};
+  ctx.current_suite_name = entry->name;
+  g_current_ctx = &ctx;
+  KL_TEST_BEGIN(entry->name);
+  entry->fn(&ctx);
+  KL_TEST_END(entry->name);
+  g_current_ctx = NULL;
 }

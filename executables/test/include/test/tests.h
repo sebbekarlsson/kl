@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include <test/framework.h>
+#include <kl/test/framework.h>
 
 #include <kl/macros.h>
 #include <kl/string/string.h>

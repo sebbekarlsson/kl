@@ -38,13 +38,15 @@ To author a *new* container family, mirror the existing structure: `dummy.h`/`du
 
 ## Test framework
 
-In-tree under `executables/test/`. Macros: `KL_TEST_BEGIN/END`, `KL_TEST_ASSERT(expr, msg)`, `KL_TEST_EXPECT_EQ_INT(a, b)`, `KL_TEST_EXPECT_EXPR(expr)`, plus `KL_TEST_IT/IT_END` for named sub-tests. Tests are plain functions registered in a `KL_TestEntry` array via `KL_TEST_ENTRY(fn_name)`.
+The test framework is part of `libkl.a` and available to any application that links against the library via `#include <kl/test/framework.h>`. Macros: `KL_TEST_BEGIN/END`, `KL_TEST_ASSERT(expr, msg)`, `KL_TEST_EXPECT_EQ_INT(a, b)`, `KL_TEST_EXPECT_EXPR(expr)`, plus `KL_TEST_IT/IT_END` for named sub-tests. Tests are plain functions registered in a `KL_TestEntry` array via `KL_TEST_ENTRY(fn_name)`. The convenience function `kl_test_run_entry(KL_TestEntry*)` handles context setup and BEGIN/END for a single entry.
 
-Layout:
-- `include/test/framework.h` — macros, types, `extern` declarations of the run-wide counters and helpers.
-- `src/framework.c` — the single definition of those counters/helpers. They **must not** be `static` in the header: each test `.c` file is its own translation unit, so per-TU copies would desync the pass/fail totals.
-- `include/test/tests.h` — umbrella header. Pulls in `framework.h` + every library header a suite needs, and declares every test function so `main.c` can register it.
+Framework layout (in the main library):
+- `include/kl/test/framework.h` — macros, types, `extern` declarations of the run-wide counters and helpers.
+- `src/test/framework.c` — the single definition of those counters/helpers plus `kl_test_run_entry`. They **must not** be `static` in the header: each test `.c` file is its own translation unit, so per-TU copies would desync the pass/fail totals.
+
+KL's own test suites live under `executables/test/`:
+- `include/test/tests.h` — umbrella header. Pulls in `<kl/test/framework.h>` + every library header a suite needs, and declares every test function so `main.c` can register it.
 - `src/test_<suite>.c` — test functions, one file per suite (`allocator`, `list`, `hashmap`, `sparse_set`, `string`, `fs`, `json`, `path`). Each `#include <test/tests.h>`. Suite-local helpers stay `static`.
-- `src/main.c` — `get_arg`, `run_test`, and the `tests[]` registry only.
+- `src/main.c` — the `tests[]` registry and CLI `--test` filter only.
 
 No discovery. Adding a test is three steps: write the function in the relevant `src/test_<suite>.c`, declare it in `include/test/tests.h`, and add a `KL_TEST_ENTRY(...)` line to the `tests[]` array in `src/main.c`. `add_subproject` globs `src/*.c`, so a brand-new suite file is picked up on the next `./compile.sh` (cmake reruns) without editing `CMakeLists.txt`.

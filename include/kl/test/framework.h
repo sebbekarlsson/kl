@@ -78,6 +78,9 @@ void kl_test_print_duration(long long us);
 // Summary stats printer
 void kl_test_print_summary(void);
 
+// Run a single test entry (sets up context, calls BEGIN/END)
+void kl_test_run_entry(KL_TestEntry* entry);
+
 #define KL_TEST_STR(A) #A
 
 #define KL_TEST_ENTRY(FN) ((KL_TestEntry){ .fn = (FN), .name = KL_TEST_STR(FN) })
