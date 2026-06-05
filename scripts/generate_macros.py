@@ -215,3 +215,25 @@ if __name__ == '__main__':
         impl_path='./src/templates/sparse_set/dummy.c',
         outpath=f'./include/{NAME}/templates/sparse_set/sparse_set.h'
     )
+
+
+    # ringbuffer 
+    generate(
+        before_head=f'#define {PREFIX}DEFINE_RINGBUFFER(NAME, T)\n',
+        header_path=f'./include/{NAME}/templates/ringbuffer/dummy.h',
+        before_impl=f'#define {PREFIX}IMPL_RINGBUFFER(NAME, T)\n',
+        impl_path='./src/templates/ringbuffer/dummy.c',
+        outpath=f'./include/{NAME}/templates/ringbuffer/ringbuffer.h'
+    )
+    generate_type(
+        includes=[],
+        template_name='ringbuffer',
+        typename='float',
+        name='f32'
+    )
+    generate_type(
+        includes=[],
+        template_name='ringbuffer',
+        typename='double',
+        name='f64'
+    )

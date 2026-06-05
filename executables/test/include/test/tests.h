@@ -26,6 +26,7 @@
 #include <kl/templates/hashmap/int64_hashmap.h>
 #include <kl/templates/sparse_set/binary_sparse_set.h>
 #include <kl/templates/sparse_set/dummy.h>
+#include <kl/templates/ringbuffer/f32_ringbuffer.h>
 #include <kl/binary/blob.h>
 #include <kl/io/fs.h>
 #include <kl/json/tokenizer.h>
@@ -203,6 +204,24 @@ void test_sparse_set_noalloc_dense_grows_when_full();
 void test_sparse_set_noalloc_remove_swaps_with_last();
 void test_sparse_set_noalloc_many_inserts_round_trip();
 void test_sparse_set_noalloc_reset_then_reuse();
+
+/* ===================== f32_ringbuffer (test_ringbuffer.c) ===================== */
+void test_f32_ringbuffer_init_destroy();
+void test_f32_ringbuffer_double_init_is_noop();
+void test_f32_ringbuffer_write_read_round_trip();
+void test_f32_ringbuffer_write_advances_write_cursor();
+void test_f32_ringbuffer_read_advances_read_cursor();
+void test_f32_ringbuffer_write_cursor_wraps();
+void test_f32_ringbuffer_read_cursor_wraps();
+void test_f32_ringbuffer_full_cycle_returns_to_origin();
+void test_f32_ringbuffer_overwrite_keeps_latest_in_slots();
+void test_f32_ringbuffer_interleaved_read_write_is_fifo();
+void test_f32_ringbuffer_reset_zeros_and_rewinds();
+void test_f32_ringbuffer_reset_allows_reuse();
+void test_f32_ringbuffer_length_one();
+void test_f32_ringbuffer_preserves_special_values();
+void test_f32_ringbuffer_stress_many_laps();
+void test_f32_ringbuffer_with_arena_allocator();
 
 /* ===================== fs (test_fs.c) ===================== */
 void test_fs_read_directory_rejects_bad_args();
