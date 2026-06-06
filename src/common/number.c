@@ -33,8 +33,16 @@ float kl_clamp_f32(float v, float min, float max) {
   return fminf(fmaxf(v, min), max);
 }
 
+double kl_clamp_f64(double v, double min, double max) {
+  return fmin(fmax(v, min), max);
+}
+
 float kl_lerp_f32(float from, float to, float t) {
   return (1.0f - t) * from + t * to;
+}
+
+double kl_lerp_f64(double from, double to, double t) {
+  return (1.0 - t) * from + t * to;
 }
 
 float kl_smoothstep_f32(float e0, float e1, float x) {
@@ -42,11 +50,25 @@ float kl_smoothstep_f32(float e0, float e1, float x) {
   return t * t * (3.0f - 2.0f * t);
 }
 
+double kl_smoothstep_f64(double e0, double e1, double x) {
+  double t = kl_clamp_f64((x - e0) / (e1 - e0), 0.0f, 1.0f);
+  return t * t * (3.0f - 2.0f * t);
+}
+
 float kl_fract_f32(float x) {
   return x - floorf(x);
+}
+
+double kl_fract_f64(double x) {
+  return x - floor(x);
 }
 
 float kl_slt_f32(float a, float b, float s) {
   float h = kl_clamp_f32(0.5f + (0.5f * (b - a)) / s, 0.0f, 1.0f);
   return kl_lerp_f32(0.0f, 1.0f, h * h * (3.0f - 2.0f * h));
+}
+
+double kl_slt_f64(double a, double b, double s) {
+  double h = kl_clamp_f64(0.5 + (0.5 * (b - a)) / s, 0.0, 1.0);
+  return kl_lerp_f64(0.0, 1.0, h * h * (3.0 - 2.0 * h));
 }
