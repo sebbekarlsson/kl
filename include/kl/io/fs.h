@@ -16,4 +16,6 @@ bool kl_fs_get_homedir(KL_StrBuffer* out);
 
 bool kl_fs_read_directory(KL_StrConst dirpath, bool recursive, KL_Allocator* allocator, KL_file_List* out_files);
 
+bool kl_fs_mkdir(const char* dirpath);
+
 #endif

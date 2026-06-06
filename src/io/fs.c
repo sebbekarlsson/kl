@@ -150,3 +150,8 @@ bool kl_fs_read_directory(KL_StrConst dirpath, bool recursive,
 
   return read_directory_traverse(dirpath, recursive, allocator, out_files);
 }
+
+bool kl_fs_mkdir(const char* dirpath) {
+  if (kl_fs_file_exists(dirpath)) return true;
+  return mkdir(dirpath, 0755) == 0;
+}
