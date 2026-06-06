@@ -146,6 +146,18 @@ if __name__ == '__main__':
         name='float'
     )
     generate_type(
+        includes=[],
+        template_name='list',
+        typename='float',
+        name='f32'
+    )
+    generate_type(
+        includes=[],
+        template_name='list',
+        typename='double',
+        name='f64'
+    )
+    generate_type(
         includes=[f'#include <{NAME}/binary/blob.h>'],
         template_name='list',
         typename=f'{PREFIX}Blob*',
