@@ -252,6 +252,16 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_vec4_div),
     KL_TEST_ENTRY(test_vec4_lerp),
 
+    KL_TEST_ENTRY(test_vecn_f32_create),
+    KL_TEST_ENTRY(test_vecn_f32_create_null_items),
+    KL_TEST_ENTRY(test_vecn_f32_copy),
+    KL_TEST_ENTRY(test_vecn_f32_unit),
+    KL_TEST_ENTRY(test_vecn_f32_scale),
+    KL_TEST_ENTRY(test_vecn_f32_add),
+    KL_TEST_ENTRY(test_vecn_f32_sub),
+    KL_TEST_ENTRY(test_vecn_f32_mul),
+    KL_TEST_ENTRY(test_vecn_f32_div),
+
     KL_TEST_ENTRY(test_noise_value_2d_deterministic),
     KL_TEST_ENTRY(test_noise_value_2d_range),
     KL_TEST_ENTRY(test_noise_value_2d_continuity),

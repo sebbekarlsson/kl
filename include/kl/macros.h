@@ -10,4 +10,6 @@
 #define KL_ENUM_STR(NAME) #NAME,
 #define KL_ENUM_VALUE(NAME) NAME,
 
+#define KL_OPTIONAL(X) X
+
 #endif

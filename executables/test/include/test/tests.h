@@ -36,6 +36,7 @@
 #include <kl/math/vec2.h>
 #include <kl/math/vec3.h>
 #include <kl/math/vec4.h>
+#include <kl/math/vecn.h>
 #include <kl/math/macros.h>
 #include <kl/noise/noise.h>
 
@@ -299,6 +300,17 @@ void test_vec4_sub();
 void test_vec4_mul();
 void test_vec4_div();
 void test_vec4_lerp();
+
+/* ===================== vecn (test_vecn.c) ===================== */
+void test_vecn_f32_create();
+void test_vecn_f32_create_null_items();
+void test_vecn_f32_copy();
+void test_vecn_f32_unit();
+void test_vecn_f32_scale();
+void test_vecn_f32_add();
+void test_vecn_f32_sub();
+void test_vecn_f32_mul();
+void test_vecn_f32_div();
 
 /* ===================== noise (test_noise.c) ===================== */
 void test_noise_value_2d_deterministic();

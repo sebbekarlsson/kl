@@ -4,51 +4,36 @@
 #include <stdint.h>
 #include <math.h>
 
-static inline float kl_vecn_mag(const float* vs, int32_t dims) {
-  float s = 0.0f;
-  for (int32_t i = 0; i < dims; i++) {
-    s += vs[i] * vs[i];
-  }
-  return sqrtf(s);
-}
+#include <kl/memory/allocator.h>
 
-static inline float kl_vecn_dot(const float* a, const float* b, int32_t dims) {
-  float s = 0.0f;
-  for (int32_t i = 0; i < dims; i++) {
-    s += a[i] * b[i];
-  }
-  return s;
-}
-
-static inline void kl_vecn_unit(const float* vs, float* out, int32_t dims) {
-  float mag = kl_vecn_mag(vs, dims);
-  if (mag <= 0.0f) return;
-
-  float inv_mag = 1.0f / mag;
-
-  for (int32_t i = 0; i < dims; i++) {
-    out[i] = vs[i] * inv_mag;
-  }
-}
-
-static inline void kl_vecn_scale(const float* vs, float* out, float s, int32_t dims) {
-  for (int32_t i = 0; i < dims; i++) {
-    out[i] = vs[i] * s;
-  }
-}
+typedef struct {
+  float *items;
+  int64_t length;
+  KL_Allocator* allocator;
+} KL_VecN_f32;
 
 
-#define KL_VECN_OP_VV(NAME, OP)\
-  static inline void kl_vecn_##NAME(const float* a, const float* b, float* out, int32_t dims) {\
-    for (int32_t i = 0; i < dims; i++) {\
-      out[i] = a[i] OP b[i];\
-    }\
-  }
+KL_VecN_f32 kl_vecn_f32_create(const float *items, int64_t length, KL_Allocator* allocator);
+KL_VecN_f32 kl_vecn_f32_copy(KL_VecN_f32 src);
+
+float kl_vecn_f32_mag(KL_VecN_f32 a);
+float kl_vecn_f32_dot(KL_VecN_f32 a, KL_VecN_f32 b);
 
 
-KL_VECN_OP_VV(add, +);
-KL_VECN_OP_VV(sub, -);
-KL_VECN_OP_VV(mul, *);
-KL_VECN_OP_VV(div, /);
+// *_ip = in-place (No allocations)
+
+void kl_vecn_f32_unit_ip(KL_VecN_f32* a);
+KL_VecN_f32 kl_vecn_f32_unit(KL_VecN_f32 a);
+void kl_vecn_f32_scale_ip(KL_VecN_f32* a, float s);
+KL_VecN_f32 kl_vecn_f32_scale(KL_VecN_f32 a, float s);
+
+void kl_vecn_f32_add_ip(KL_VecN_f32* a, KL_VecN_f32 b);
+KL_VecN_f32 kl_vecn_f32_add(KL_VecN_f32 a, KL_VecN_f32 b);
+void kl_vecn_f32_sub_ip(KL_VecN_f32* a, KL_VecN_f32 b);
+KL_VecN_f32 kl_vecn_f32_sub(KL_VecN_f32 a, KL_VecN_f32 b);
+void kl_vecn_f32_div_ip(KL_VecN_f32* a, KL_VecN_f32 b);
+KL_VecN_f32 kl_vecn_f32_div(KL_VecN_f32 a, KL_VecN_f32 b);
+void kl_vecn_f32_mul_ip(KL_VecN_f32* a, KL_VecN_f32 b);
+KL_VecN_f32 kl_vecn_f32_mul(KL_VecN_f32 a, KL_VecN_f32 b);
 
 #endif
