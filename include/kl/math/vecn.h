@@ -18,6 +18,7 @@ KL_VecN_f32 kl_vecn_f32_copy(KL_VecN_f32 src);
 
 float kl_vecn_f32_mag(KL_VecN_f32 a);
 float kl_vecn_f32_dot(KL_VecN_f32 a, KL_VecN_f32 b);
+float kl_vecn_f32_cosine_distance(KL_VecN_f32 a, KL_VecN_f32 b);
 
 
 // *_ip = in-place (No allocations)

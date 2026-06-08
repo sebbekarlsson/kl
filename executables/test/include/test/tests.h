@@ -305,6 +305,8 @@ void test_vec4_lerp();
 void test_vecn_f32_create();
 void test_vecn_f32_create_null_items();
 void test_vecn_f32_copy();
+void test_vecn_f32_cosine_distance();
+void test_vecn_f32_cosine_distance_zero_vector();
 void test_vecn_f32_unit();
 void test_vecn_f32_scale();
 void test_vecn_f32_add();

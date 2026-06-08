@@ -255,6 +255,8 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_vecn_f32_create),
     KL_TEST_ENTRY(test_vecn_f32_create_null_items),
     KL_TEST_ENTRY(test_vecn_f32_copy),
+    KL_TEST_ENTRY(test_vecn_f32_cosine_distance),
+    KL_TEST_ENTRY(test_vecn_f32_cosine_distance_zero_vector),
     KL_TEST_ENTRY(test_vecn_f32_unit),
     KL_TEST_ENTRY(test_vecn_f32_scale),
     KL_TEST_ENTRY(test_vecn_f32_add),

@@ -69,6 +69,53 @@ void test_vecn_f32_copy() {
   kl_allocator_destroy(&a);
 }
 
+/* ===================== cosine distance ===================== */
+
+void test_vecn_f32_cosine_distance() {
+  KL_Allocator a = vecn_make_allocator();
+
+  float xs[] = { 1.0f, 0.0f };
+  float same[] = { 3.0f, 0.0f };   // same direction, different magnitude
+  float orth[] = { 0.0f, 5.0f };   // orthogonal
+  float opp[]  = { -2.0f, 0.0f };  // opposite direction
+  float diag[] = { 1.0f, 1.0f };   // 45 degrees from xs
+
+  KL_VecN_f32 v   = kl_vecn_f32_create(xs, 2, &a);
+  KL_VecN_f32 vs  = kl_vecn_f32_create(same, 2, &a);
+  KL_VecN_f32 vo  = kl_vecn_f32_create(orth, 2, &a);
+  KL_VecN_f32 vop = kl_vecn_f32_create(opp, 2, &a);
+  KL_VecN_f32 vd  = kl_vecn_f32_create(diag, 2, &a);
+
+  // Same direction -> distance 0 (magnitude is irrelevant).
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(v, vs), 0.0f, VECN_EPS);
+  // Orthogonal -> similarity 0 -> distance 1.
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(v, vo), 1.0f, VECN_EPS);
+  // Opposite -> similarity -1 -> distance 2.
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(v, vop), 2.0f, VECN_EPS);
+  // 45 degrees -> similarity cos(45) = 1/sqrt(2) -> distance 1 - 0.70710678.
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(v, vd), 1.0f - 0.70710678f, VECN_EPS);
+  // Symmetric in its arguments.
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(vd, v),
+                          kl_vecn_f32_cosine_distance(v, vd), VECN_EPS);
+
+  kl_allocator_destroy(&a);
+}
+
+void test_vecn_f32_cosine_distance_zero_vector() {
+  KL_Allocator a = vecn_make_allocator();
+
+  float xs[] = { 1.0f, 2.0f, 3.0f };
+  float zero[] = { 0.0f, 0.0f, 0.0f };
+  KL_VecN_f32 v = kl_vecn_f32_create(xs, 3, &a);
+  KL_VecN_f32 z = kl_vecn_f32_create(zero, 3, &a);
+
+  // A zero vector has no direction; distance is defined as 1 (max) rather than NaN.
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(v, z), 1.0f, VECN_EPS);
+  KL_TEST_EXPECT_EQ_FLOAT(kl_vecn_f32_cosine_distance(z, z), 1.0f, VECN_EPS);
+
+  kl_allocator_destroy(&a);
+}
+
 /* ===================== unary ops ===================== */
 
 void test_vecn_f32_unit() {

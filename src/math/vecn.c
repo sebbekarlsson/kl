@@ -46,6 +46,20 @@ float kl_vecn_f32_dot(KL_VecN_f32 a, KL_VecN_f32 b) {
   return s;
 }
 
+float kl_vecn_f32_cosine_distance(KL_VecN_f32 a, KL_VecN_f32 b) {
+  ASSERT_VALID_VECN(a);
+  ASSERT_VALID_VECN(b);
+  assert(a.length == b.length);
+
+  // cosine distance = 1 - (a . b) / (|a| * |b|).
+  float denom = kl_vecn_f32_mag(a) * kl_vecn_f32_mag(b);
+  // A zero-length vector has no direction; treat similarity as 0 (max distance)
+  // rather than dividing by zero.
+  if (denom <= 0.0f) return 1.0f;
+
+  return 1.0f - (kl_vecn_f32_dot(a, b) / denom);
+}
+
 void kl_vecn_f32_unit_ip(KL_VecN_f32* a) {
   ASSERT_VALID_VECN(*a);
   float mag = kl_vecn_f32_mag(*a);
