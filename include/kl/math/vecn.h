@@ -2,6 +2,7 @@
 #define KL_VECN_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <math.h>
 
 #include <kl/memory/allocator.h>
@@ -17,8 +18,14 @@ KL_VecN_f32 kl_vecn_f32_create(const float *items, int64_t length, KL_Allocator*
 KL_VecN_f32 kl_vecn_f32_copy(KL_VecN_f32 src);
 
 float kl_vecn_f32_mag(KL_VecN_f32 a);
+float kl_vecn_f32_mag_sq(KL_VecN_f32 a);
+float kl_vecn_f32_sum(KL_VecN_f32 a);
 float kl_vecn_f32_dot(KL_VecN_f32 a, KL_VecN_f32 b);
+float kl_vecn_f32_distance(KL_VecN_f32 a, KL_VecN_f32 b);
+float kl_vecn_f32_distance_sq(KL_VecN_f32 a, KL_VecN_f32 b);
+float kl_vecn_f32_manhattan_distance(KL_VecN_f32 a, KL_VecN_f32 b);
 float kl_vecn_f32_cosine_distance(KL_VecN_f32 a, KL_VecN_f32 b);
+bool kl_vecn_f32_equals(KL_VecN_f32 a, KL_VecN_f32 b, float epsilon);
 
 
 // *_ip = in-place (No allocations)
@@ -27,6 +34,14 @@ void kl_vecn_f32_unit_ip(KL_VecN_f32* a);
 KL_VecN_f32 kl_vecn_f32_unit(KL_VecN_f32 a);
 void kl_vecn_f32_scale_ip(KL_VecN_f32* a, float s);
 KL_VecN_f32 kl_vecn_f32_scale(KL_VecN_f32 a, float s);
+void kl_vecn_f32_negate_ip(KL_VecN_f32* a);
+KL_VecN_f32 kl_vecn_f32_negate(KL_VecN_f32 a);
+void kl_vecn_f32_abs_ip(KL_VecN_f32* a);
+KL_VecN_f32 kl_vecn_f32_abs(KL_VecN_f32 a);
+void kl_vecn_f32_clamp_ip(KL_VecN_f32* a, float lo, float hi);
+KL_VecN_f32 kl_vecn_f32_clamp(KL_VecN_f32 a, float lo, float hi);
+void kl_vecn_f32_lerp_ip(KL_VecN_f32* a, KL_VecN_f32 b, float t);
+KL_VecN_f32 kl_vecn_f32_lerp(KL_VecN_f32 a, KL_VecN_f32 b, float t);
 
 void kl_vecn_f32_add_ip(KL_VecN_f32* a, KL_VecN_f32 b);
 KL_VecN_f32 kl_vecn_f32_add(KL_VecN_f32 a, KL_VecN_f32 b);

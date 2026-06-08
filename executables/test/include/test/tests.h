@@ -38,6 +38,7 @@
 #include <kl/math/vec4.h>
 #include <kl/math/vecn.h>
 #include <kl/math/macros.h>
+#include <kl/common/number.h>
 #include <kl/noise/noise.h>
 
 /* ===================== string (test_string.c) ===================== */
@@ -305,6 +306,8 @@ void test_vec4_lerp();
 void test_vecn_f32_create();
 void test_vecn_f32_create_null_items();
 void test_vecn_f32_copy();
+void test_vecn_f32_distance();
+void test_vecn_f32_distance_equals_mag_of_sub();
 void test_vecn_f32_cosine_distance();
 void test_vecn_f32_cosine_distance_zero_vector();
 void test_vecn_f32_unit();
@@ -313,6 +316,16 @@ void test_vecn_f32_add();
 void test_vecn_f32_sub();
 void test_vecn_f32_mul();
 void test_vecn_f32_div();
+void test_vecn_f32_mag_sq();
+void test_vecn_f32_sum();
+void test_vecn_f32_distance_sq();
+void test_vecn_f32_manhattan_distance();
+void test_vecn_f32_equals();
+void test_vecn_f32_negate();
+void test_vecn_f32_abs();
+void test_vecn_f32_clamp();
+void test_vecn_f32_lerp();
+void test_vecn_f32_simd_paths();
 
 /* ===================== noise (test_noise.c) ===================== */
 void test_noise_value_2d_deterministic();
