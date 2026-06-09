@@ -11,15 +11,15 @@
 #define KL_VECN_SIMD 0
 #endif
 
-// Vectors are allocated 32-byte aligned (one AVX2 register) so SIMD loads never
-// straddle a cache line. We still use unaligned load/store intrinsics, because a
-// KL_VecN_f32 may wrap memory we did not allocate (e.g. the vec2/vec3/vec4
-// helpers wrap stack arrays) -- on AVX2 hardware an unaligned load over aligned
-// data costs the same as an aligned one. The SIMD loops only run while a full
-// 8-lane block remains; the trailing scalar loop handles the remainder and also
-// serves as the complete fallback when AVX2/FMA are unavailable.
+// All SIMD memory access uses the unaligned load/store intrinsics
+// (_mm256_loadu_ps / _mm256_storeu_ps), which never fault on unaligned data and
+// cost the same as aligned access on AVX2 hardware. So nothing here requires an
+// aligned allocation -- which also lets a KL_VecN_f32 freely wrap memory we did
+// not allocate (the vec2/vec3/vec4 helpers wrap stack arrays; matn hands out row
+// slices). The SIMD loops only run while a full 8-lane block remains; the
+// trailing scalar loop handles the remainder and also serves as the complete
+// fallback when AVX2/FMA are unavailable.
 #define KL_VECN_SIMD_LANES 8
-#define KL_VECN_ALIGN 32
 
 
 #define ASSERT_VALID_VECN(V) do { assert((V).items != 0); assert((V).length > 0); } while (0)
@@ -43,11 +43,7 @@ static inline float kl_vecn__hsum256(__m256 v) {
 KL_VecN_f32 kl_vecn_f32_create(const float *items, int64_t length, KL_Allocator* allocator) {
   assert(allocator != 0);
 
-#if KL_VECN_SIMD
-  float* copy = (float*)kl_allocator_malloc_aligned(allocator, length * sizeof(float), KL_VECN_ALIGN);
-#else
   float* copy = (float*)kl_allocator_malloc(allocator, length * sizeof(float));
-#endif
   assert(copy != 0);
 
   if (items != 0) {

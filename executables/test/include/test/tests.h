@@ -37,6 +37,7 @@
 #include <kl/math/vec3.h>
 #include <kl/math/vec4.h>
 #include <kl/math/vecn.h>
+#include <kl/math/matn.h>
 #include <kl/math/macros.h>
 #include <kl/common/number.h>
 #include <kl/noise/noise.h>
@@ -326,6 +327,29 @@ void test_vecn_f32_abs();
 void test_vecn_f32_clamp();
 void test_vecn_f32_lerp();
 void test_vecn_f32_simd_paths();
+
+/* ===================== matn (test_matn.c) ===================== */
+void test_matn_f32_create();
+void test_matn_f32_create_null_items();
+void test_matn_f32_copy();
+void test_matn_f32_identity();
+void test_matn_f32_at_set();
+void test_matn_f32_get_row();
+void test_matn_f32_copy_row();
+void test_matn_f32_equals();
+void test_matn_f32_transpose();
+void test_matn_f32_mul();
+void test_matn_f32_mul_vec();
+void test_matn_f32_scale();
+void test_matn_f32_negate();
+void test_matn_f32_abs();
+void test_matn_f32_clamp();
+void test_matn_f32_lerp();
+void test_matn_f32_add();
+void test_matn_f32_sub();
+void test_matn_f32_mul_elementwise();
+void test_matn_f32_div();
+void test_matn_f32_simd_paths();
 
 /* ===================== noise (test_noise.c) ===================== */
 void test_noise_value_2d_deterministic();
