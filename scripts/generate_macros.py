@@ -227,6 +227,12 @@ if __name__ == '__main__':
         impl_path='./src/templates/sparse_set/dummy.c',
         outpath=f'./include/{NAME}/templates/sparse_set/sparse_set.h'
     )
+    generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='sparse_set',
+        typename='int64_t',
+        name='i64'
+    )
 
 
     # ringbuffer 
