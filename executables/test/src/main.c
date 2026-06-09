@@ -286,6 +286,7 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_matn_f32_equals),
     KL_TEST_ENTRY(test_matn_f32_transpose),
     KL_TEST_ENTRY(test_matn_f32_mul),
+    KL_TEST_ENTRY(test_matn_f32_mul_into),
     KL_TEST_ENTRY(test_matn_f32_mul_vec),
     KL_TEST_ENTRY(test_matn_f32_scale),
     KL_TEST_ENTRY(test_matn_f32_negate),
@@ -296,6 +297,8 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_matn_f32_sub),
     KL_TEST_ENTRY(test_matn_f32_mul_elementwise),
     KL_TEST_ENTRY(test_matn_f32_div),
+    KL_TEST_ENTRY(test_matn_f32_binop_into),
+    KL_TEST_ENTRY(test_matn_f32_unary_into),
     KL_TEST_ENTRY(test_matn_f32_simd_paths),
 
     KL_TEST_ENTRY(test_noise_value_2d_deterministic),

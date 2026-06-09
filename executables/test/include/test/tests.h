@@ -339,6 +339,7 @@ void test_matn_f32_copy_row();
 void test_matn_f32_equals();
 void test_matn_f32_transpose();
 void test_matn_f32_mul();
+void test_matn_f32_mul_into();
 void test_matn_f32_mul_vec();
 void test_matn_f32_scale();
 void test_matn_f32_negate();
@@ -349,6 +350,8 @@ void test_matn_f32_add();
 void test_matn_f32_sub();
 void test_matn_f32_mul_elementwise();
 void test_matn_f32_div();
+void test_matn_f32_binop_into();
+void test_matn_f32_unary_into();
 void test_matn_f32_simd_paths();
 
 /* ===================== noise (test_noise.c) ===================== */

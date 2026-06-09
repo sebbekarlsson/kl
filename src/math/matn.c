@@ -129,22 +129,28 @@ KL_MatN_f32 kl_matn_f32_transpose(KL_MatN_f32 mat) {
   return out;
 }
 
-KL_MatN_f32 kl_matn_f32_mul(KL_MatN_f32 a, KL_MatN_f32 b) {
+void kl_matn_f32_mul_into(KL_MatN_f32 a, KL_MatN_f32 b, KL_MatN_f32* out) {
   ASSERT_VALID_MATN(a);
   ASSERT_VALID_MATN(b);
+  assert(out != 0);
+  ASSERT_VALID_MATN(*out);
   assert(a.cols == b.rows);
-  KL_MatN_f32 out = kl_matn_f32_create(0, a.rows, b.cols, a.allocator);
+  assert(out->rows == a.rows);
+  assert(out->cols == b.cols);
+  // out is accumulated into while a and b are read, so it must not alias either.
+  assert(out->items != a.items);
+  assert(out->items != b.items);
 
   // ikj ordering: for each output row i we sweep k and add a[i][k] * (row k of
   // b) into (row i of out). Both b's row k and out's row i are contiguous, so
   // the inner j loop is a broadcast-multiply-accumulate that vectorizes the way
   // the vecn ops do -- unlike the textbook ijk loop, whose inner stride walks a
   // column of b. out is accumulated into, so it must start zeroed.
-  const int64_t n = b.cols;  // == out.cols
-  memset(out.items, 0, (size_t)(out.rows * out.cols) * sizeof(float));
+  const int64_t n = b.cols;  // == out->cols
+  memset(out->items, 0, (size_t)(out->rows * out->cols) * sizeof(float));
 
   for (int64_t i = 0; i < a.rows; i++) {
-    float* orow = &out.items[i * out.cols];
+    float* orow = &out->items[i * out->cols];
     for (int64_t k = 0; k < a.cols; k++) {
       const float aik = a.items[i * a.cols + k];
       const float* brow = &b.items[k * b.cols];
@@ -160,6 +166,14 @@ KL_MatN_f32 kl_matn_f32_mul(KL_MatN_f32 a, KL_MatN_f32 b) {
       for (; j < n; j++) orow[j] += aik * brow[j];
     }
   }
+}
+
+KL_MatN_f32 kl_matn_f32_mul(KL_MatN_f32 a, KL_MatN_f32 b) {
+  ASSERT_VALID_MATN(a);
+  ASSERT_VALID_MATN(b);
+  assert(a.cols == b.rows);
+  KL_MatN_f32 out = kl_matn_f32_create(0, a.rows, b.cols, a.allocator);
+  kl_matn_f32_mul_into(a, b, &out);
   return out;
 }
 
@@ -182,15 +196,36 @@ KL_VecN_f32 kl_matn_f32_mul_vec(KL_MatN_f32 mat, KL_VecN_f32 v) {
 // op over rows*cols elements. We wrap items in a non-owning vecn view and
 // delegate, inheriting vecn's SIMD paths instead of duplicating them.
 
+// Seed a caller-owned `out` to receive a unary transform of `a`: validate the
+// shapes match, copy a's contents into out (unless out already aliases a), and
+// hand back out as a vecn view for the in-place transform to run over. There is
+// no second operand, so out may freely alias a.
+static inline KL_VecN_f32 matn_prepare_unary_into(KL_MatN_f32 a, KL_MatN_f32* out) {
+  ASSERT_VALID_MATN(a);
+  assert(out != 0);
+  ASSERT_VALID_MATN(*out);
+  assert(out->rows == a.rows);
+  assert(out->cols == a.cols);
+  if (out->items != a.items) {
+    memcpy(out->items, a.items, (size_t)(a.rows * a.cols) * sizeof(float));
+  }
+  return matn_as_vecn(*out);
+}
+
 void kl_matn_f32_scale_ip(KL_MatN_f32* a, float s) {
   ASSERT_VALID_MATN(*a);
   KL_VecN_f32 v = matn_as_vecn(*a);
   kl_vecn_f32_scale_ip(&v, s);
 }
 
+void kl_matn_f32_scale_into(KL_MatN_f32 a, float s, KL_MatN_f32* out) {
+  KL_VecN_f32 vout = matn_prepare_unary_into(a, out);
+  kl_vecn_f32_scale_ip(&vout, s);
+}
+
 KL_MatN_f32 kl_matn_f32_scale(KL_MatN_f32 a, float s) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_scale_ip(&m, s);
+  KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);
+  kl_matn_f32_scale_into(a, s, &m);
   return m;
 }
 
@@ -200,9 +235,14 @@ void kl_matn_f32_negate_ip(KL_MatN_f32* a) {
   kl_vecn_f32_negate_ip(&v);
 }
 
+void kl_matn_f32_negate_into(KL_MatN_f32 a, KL_MatN_f32* out) {
+  KL_VecN_f32 vout = matn_prepare_unary_into(a, out);
+  kl_vecn_f32_negate_ip(&vout);
+}
+
 KL_MatN_f32 kl_matn_f32_negate(KL_MatN_f32 a) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_negate_ip(&m);
+  KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);
+  kl_matn_f32_negate_into(a, &m);
   return m;
 }
 
@@ -212,9 +252,14 @@ void kl_matn_f32_abs_ip(KL_MatN_f32* a) {
   kl_vecn_f32_abs_ip(&v);
 }
 
+void kl_matn_f32_abs_into(KL_MatN_f32 a, KL_MatN_f32* out) {
+  KL_VecN_f32 vout = matn_prepare_unary_into(a, out);
+  kl_vecn_f32_abs_ip(&vout);
+}
+
 KL_MatN_f32 kl_matn_f32_abs(KL_MatN_f32 a) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_abs_ip(&m);
+  KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);
+  kl_matn_f32_abs_into(a, &m);
   return m;
 }
 
@@ -224,9 +269,14 @@ void kl_matn_f32_clamp_ip(KL_MatN_f32* a, float lo, float hi) {
   kl_vecn_f32_clamp_ip(&v, lo, hi);
 }
 
+void kl_matn_f32_clamp_into(KL_MatN_f32 a, float lo, float hi, KL_MatN_f32* out) {
+  KL_VecN_f32 vout = matn_prepare_unary_into(a, out);
+  kl_vecn_f32_clamp_ip(&vout, lo, hi);
+}
+
 KL_MatN_f32 kl_matn_f32_clamp(KL_MatN_f32 a, float lo, float hi) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_clamp_ip(&m, lo, hi);
+  KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);
+  kl_matn_f32_clamp_into(a, lo, hi, &m);
   return m;
 }
 
@@ -239,49 +289,66 @@ void kl_matn_f32_lerp_ip(KL_MatN_f32* a, KL_MatN_f32 b, float t) {
   kl_vecn_f32_lerp_ip(&va, matn_as_vecn(b), t);
 }
 
+void kl_matn_f32_lerp_into(KL_MatN_f32 a, KL_MatN_f32 b, float t, KL_MatN_f32* out) {
+  ASSERT_VALID_MATN(b);
+  assert(a.rows == b.rows);
+  assert(a.cols == b.cols);
+  // lerp reads b while writing out, so (like the binops) out must not alias b.
+  assert(out != 0);
+  assert(out->items != b.items);
+  KL_VecN_f32 vout = matn_prepare_unary_into(a, out);
+  kl_vecn_f32_lerp_ip(&vout, matn_as_vecn(b), t);
+}
+
 KL_MatN_f32 kl_matn_f32_lerp(KL_MatN_f32 a, KL_MatN_f32 b, float t) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_lerp_ip(&m, b, t);
+  KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);
+  kl_matn_f32_lerp_into(a, b, t, &m);
   return m;
 }
 
-// The four elementwise matrix-matrix ops share one shape: validate matching
-// dimensions, then delegate to the matching vecn binop over flat views.
-#define KL_MATN__DEFINE_BINOP_IP(NAME)                          \
-  void kl_matn_f32_##NAME##_ip(KL_MatN_f32* a, KL_MatN_f32 b) { \
-    ASSERT_VALID_MATN(*a);                                      \
-    ASSERT_VALID_MATN(b);                                       \
-    assert(a->rows == b.rows);                                  \
-    assert(a->cols == b.cols);                                  \
-    KL_VecN_f32 va = matn_as_vecn(*a);                          \
-    kl_vecn_f32_##NAME##_ip(&va, matn_as_vecn(b));              \
-  }                                                             \
-  KL_MatN_f32 kl_matn_f32_##NAME(KL_MatN_f32 a, KL_MatN_f32 b) { \
-    KL_MatN_f32 m = kl_matn_f32_copy(a);                        \
-    kl_matn_f32_##NAME##_ip(&m, b);                             \
-    return m;                                                   \
+// The elementwise matrix-matrix ops share one shape, so each expands from a
+// single macro into three entry points: _ip (writes into a), _into (writes
+// a OP b into a caller-owned out), and the allocating form (allocates out, then
+// delegates to _into). All validate matching dimensions and delegate the actual
+// work to the matching vecn binop over flat views. VECN_NAME is that vecn op --
+// it differs from MATN_NAME only for the Hadamard product, which maps to vecn's
+// plain elementwise mul (hence the name parameter, vs. token-pasting one name).
+#define KL_MATN__DEFINE_BINOP(MATN_NAME, VECN_NAME)                                     \
+  void kl_matn_f32_##MATN_NAME##_ip(KL_MatN_f32* a, KL_MatN_f32 b) {                    \
+    ASSERT_VALID_MATN(*a);                                                              \
+    ASSERT_VALID_MATN(b);                                                               \
+    assert(a->rows == b.rows);                                                          \
+    assert(a->cols == b.cols);                                                          \
+    KL_VecN_f32 va = matn_as_vecn(*a);                                                  \
+    kl_vecn_f32_##VECN_NAME##_ip(&va, matn_as_vecn(b));                                 \
+  }                                                                                     \
+  void kl_matn_f32_##MATN_NAME##_into(KL_MatN_f32 a, KL_MatN_f32 b, KL_MatN_f32* out) { \
+    ASSERT_VALID_MATN(a);                                                               \
+    ASSERT_VALID_MATN(b);                                                               \
+    assert(out != 0);                                                                   \
+    ASSERT_VALID_MATN(*out);                                                            \
+    assert(a.rows == b.rows);                                                           \
+    assert(a.cols == b.cols);                                                           \
+    assert(out->rows == a.rows);                                                        \
+    assert(out->cols == a.cols);                                                        \
+    /* out is read against b while being written, so it must not alias b. */           \
+    /* Aliasing a is fine -- it degenerates into the _ip case. */                       \
+    assert(out->items != b.items);                                                      \
+    if (out->items != a.items) {                                                        \
+      memcpy(out->items, a.items, (size_t)(a.rows * a.cols) * sizeof(float));           \
+    }                                                                                   \
+    KL_VecN_f32 vout = matn_as_vecn(*out);                                              \
+    kl_vecn_f32_##VECN_NAME##_ip(&vout, matn_as_vecn(b));                               \
+  }                                                                                     \
+  KL_MatN_f32 kl_matn_f32_##MATN_NAME(KL_MatN_f32 a, KL_MatN_f32 b) {                   \
+    KL_MatN_f32 m = kl_matn_f32_create(0, a.rows, a.cols, a.allocator);                 \
+    kl_matn_f32_##MATN_NAME##_into(a, b, &m);                                           \
+    return m;                                                                           \
   }
 
-KL_MATN__DEFINE_BINOP_IP(add)
-KL_MATN__DEFINE_BINOP_IP(sub)
-KL_MATN__DEFINE_BINOP_IP(div)
+KL_MATN__DEFINE_BINOP(add, add)
+KL_MATN__DEFINE_BINOP(sub, sub)
+KL_MATN__DEFINE_BINOP(div, div)
+KL_MATN__DEFINE_BINOP(mul_elementwise, mul)
 
-#undef KL_MATN__DEFINE_BINOP_IP
-
-// Hadamard product. Named *_elementwise to leave kl_matn_f32_mul for real
-// matrix multiplication; it maps to vecn's plain elementwise mul, so it can't
-// ride the macro above (which pastes NAME into the vecn op name).
-void kl_matn_f32_mul_elementwise_ip(KL_MatN_f32* a, KL_MatN_f32 b) {
-  ASSERT_VALID_MATN(*a);
-  ASSERT_VALID_MATN(b);
-  assert(a->rows == b.rows);
-  assert(a->cols == b.cols);
-  KL_VecN_f32 va = matn_as_vecn(*a);
-  kl_vecn_f32_mul_ip(&va, matn_as_vecn(b));
-}
-
-KL_MatN_f32 kl_matn_f32_mul_elementwise(KL_MatN_f32 a, KL_MatN_f32 b) {
-  KL_MatN_f32 m = kl_matn_f32_copy(a);
-  kl_matn_f32_mul_elementwise_ip(&m, b);
-  return m;
-}
+#undef KL_MATN__DEFINE_BINOP

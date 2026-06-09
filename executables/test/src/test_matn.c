@@ -243,6 +243,39 @@ void test_matn_f32_mul() {
   kl_allocator_destroy(&a2);
 }
 
+void test_matn_f32_mul_into() {
+  KL_Allocator a = matn_make_allocator();
+
+  float xs[] = { 1.0f, 2.0f, 3.0f,
+                 4.0f, 5.0f, 6.0f };          // 2x3
+  float ys[] = { 7.0f,  8.0f,
+                 9.0f,  10.0f,
+                 11.0f, 12.0f };              // 3x2
+  KL_MatN_f32 m = kl_matn_f32_create(xs, 2, 3, &a);
+  KL_MatN_f32 b = kl_matn_f32_create(ys, 3, 2, &a);
+
+  // Caller owns the destination; mul_into must not allocate, only fill it.
+  KL_MatN_f32 out = kl_matn_f32_create(0, 2, 2, &a);
+  float* out_buf = out.items;
+  kl_matn_f32_mul_into(m, b, &out);
+
+  float expected[] = { 58.0f, 64.0f,
+                       139.0f, 154.0f };
+  expect_mat(out, 2, 2, expected);
+  KL_TEST_ASSERT(out.items == out_buf, "mul_into writes into the caller's buffer, no realloc");
+
+  // Result matches the allocating variant exactly.
+  KL_MatN_f32 ref = kl_matn_f32_mul(m, b);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, ref, MATN_EPS), "mul_into matches kl_matn_f32_mul");
+
+  // A pre-filled destination is overwritten, not accumulated into.
+  kl_matn_f32_set(out, 0, 0, 999.0f);
+  kl_matn_f32_mul_into(m, b, &out);
+  expect_mat(out, 2, 2, expected);
+
+  kl_allocator_destroy(&a);
+}
+
 /* ===================== matrix-vector multiplication ===================== */
 
 void test_matn_f32_mul_vec() {
@@ -477,6 +510,89 @@ void test_matn_f32_div() {
 
   kl_allocator_destroy(&a1);
   kl_allocator_destroy(&a2);
+}
+
+// The four elementwise binops all gained an _into form from the same macro;
+// check each matches its allocating counterpart, reuses the caller's buffer,
+// leaves operands alone, and tolerates out aliasing the left operand.
+void test_matn_f32_binop_into() {
+  KL_Allocator a = matn_make_allocator();
+
+  float xs[] = { 10.0f, 18.0f, 28.0f, 40.0f };
+  float ys[] = { 5.0f, 6.0f, 7.0f, 8.0f };
+  KL_MatN_f32 m = kl_matn_f32_create(xs, 2, 2, &a);
+  KL_MatN_f32 n = kl_matn_f32_create(ys, 2, 2, &a);
+
+  KL_MatN_f32 out = kl_matn_f32_create(0, 2, 2, &a);
+  float* buf = out.items;
+
+  kl_matn_f32_add_into(m, n, &out);
+  KL_TEST_ASSERT(out.items == buf, "add_into reuses the caller buffer, no realloc");
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_add(m, n), MATN_EPS), "add_into matches add");
+
+  kl_matn_f32_sub_into(m, n, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_sub(m, n), MATN_EPS), "sub_into matches sub");
+
+  kl_matn_f32_mul_elementwise_into(m, n, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_mul_elementwise(m, n), MATN_EPS),
+                 "mul_elementwise_into matches mul_elementwise");
+
+  kl_matn_f32_div_into(m, n, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_div(m, n), MATN_EPS), "div_into matches div");
+
+  // Operands are never mutated.
+  expect_mat(m, 2, 2, xs);
+  expect_mat(n, 2, 2, ys);
+
+  // out aliasing the left operand is allowed and equals the _ip / allocating result.
+  KL_MatN_f32 acopy = kl_matn_f32_copy(m);
+  kl_matn_f32_add_into(acopy, n, &acopy);
+  KL_TEST_ASSERT(kl_matn_f32_equals(acopy, kl_matn_f32_add(m, n), MATN_EPS),
+                 "add_into with out == a degenerates to in-place");
+
+  kl_allocator_destroy(&a);
+}
+
+// The unary transforms (scale/negate/abs/clamp) and lerp each gained an _into
+// form too; check they match their allocating counterparts and reuse the buffer.
+void test_matn_f32_unary_into() {
+  KL_Allocator a = matn_make_allocator();
+
+  float xs[] = { -5.0f, 0.5f, 5.0f, -1.0f };
+  float ys[] = { 10.0f, 20.0f, 30.0f, 40.0f };
+  KL_MatN_f32 m = kl_matn_f32_create(xs, 2, 2, &a);
+  KL_MatN_f32 n = kl_matn_f32_create(ys, 2, 2, &a);
+
+  KL_MatN_f32 out = kl_matn_f32_create(0, 2, 2, &a);
+  float* buf = out.items;
+
+  kl_matn_f32_scale_into(m, 2.0f, &out);
+  KL_TEST_ASSERT(out.items == buf, "scale_into reuses the caller buffer, no realloc");
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_scale(m, 2.0f), MATN_EPS), "scale_into matches scale");
+
+  kl_matn_f32_negate_into(m, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_negate(m), MATN_EPS), "negate_into matches negate");
+
+  kl_matn_f32_abs_into(m, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_abs(m), MATN_EPS), "abs_into matches abs");
+
+  kl_matn_f32_clamp_into(m, 0.0f, 1.0f, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_clamp(m, 0.0f, 1.0f), MATN_EPS), "clamp_into matches clamp");
+
+  kl_matn_f32_lerp_into(m, n, 0.25f, &out);
+  KL_TEST_ASSERT(kl_matn_f32_equals(out, kl_matn_f32_lerp(m, n, 0.25f), MATN_EPS), "lerp_into matches lerp");
+
+  // Operands untouched throughout.
+  expect_mat(m, 2, 2, xs);
+  expect_mat(n, 2, 2, ys);
+
+  // Unary _into may alias its operand (no second operand to clobber).
+  KL_MatN_f32 acopy = kl_matn_f32_copy(m);
+  kl_matn_f32_negate_into(acopy, &acopy);
+  KL_TEST_ASSERT(kl_matn_f32_equals(acopy, kl_matn_f32_negate(m), MATN_EPS),
+                 "negate_into with out == a degenerates to in-place");
+
+  kl_allocator_destroy(&a);
 }
 
 /* ===================== SIMD path coverage =====================
