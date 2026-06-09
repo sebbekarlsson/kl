@@ -87,6 +87,10 @@ KL_VecN_f32 kl_matn_f32_copy_row(KL_MatN_f32 mat, int64_t row) {
   return kl_vecn_f32_copy(kl_matn_f32_get_row(mat, row));
 }
 
+int64_t kl_matn_f32_index_at(KL_MatN_f32 mat, int64_t row, int64_t col) {
+  return index_at(mat, row, col);
+}
+
 float kl_matn_f32_at(KL_MatN_f32 mat, int64_t row, int64_t col) {
   ASSERT_VALID_MATN(mat);
   return mat.items[index_at(mat, row, col)];

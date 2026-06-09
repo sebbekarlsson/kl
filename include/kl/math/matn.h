@@ -23,6 +23,8 @@ KL_MatN_f32 kl_matn_f32_identity(int64_t n, KL_Allocator* allocator);
 KL_VecN_f32 kl_matn_f32_get_row(KL_MatN_f32 mat, int64_t row);
 KL_VecN_f32 kl_matn_f32_copy_row(KL_MatN_f32 mat, int64_t row);
 
+int64_t kl_matn_f32_index_at(KL_MatN_f32 mat, int64_t row, int64_t col);
+
 float kl_matn_f32_at(KL_MatN_f32 mat, int64_t row, int64_t col);
 void kl_matn_f32_set(KL_MatN_f32* mat, int64_t row, int64_t col, float value);
 
