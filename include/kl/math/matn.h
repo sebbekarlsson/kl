@@ -24,7 +24,7 @@ KL_VecN_f32 kl_matn_f32_get_row(KL_MatN_f32 mat, int64_t row);
 KL_VecN_f32 kl_matn_f32_copy_row(KL_MatN_f32 mat, int64_t row);
 
 float kl_matn_f32_at(KL_MatN_f32 mat, int64_t row, int64_t col);
-void kl_matn_f32_set(KL_MatN_f32 mat, int64_t row, int64_t col, float value);
+void kl_matn_f32_set(KL_MatN_f32* mat, int64_t row, int64_t col, float value);
 
 bool kl_matn_f32_equals(KL_MatN_f32 a, KL_MatN_f32 b, float epsilon);
 

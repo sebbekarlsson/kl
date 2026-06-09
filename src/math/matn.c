@@ -92,11 +92,11 @@ float kl_matn_f32_at(KL_MatN_f32 mat, int64_t row, int64_t col) {
   return mat.items[index_at(mat, row, col)];
 }
 
-void kl_matn_f32_set(KL_MatN_f32 mat, int64_t row, int64_t col, float value) {
-  ASSERT_VALID_MATN(mat);
+void kl_matn_f32_set(KL_MatN_f32* mat, int64_t row, int64_t col, float value) {
+  ASSERT_VALID_MATN(*mat);
   // mat is passed by value, but .items aliases the caller's backing store, so
   // the write is visible through any handle that shares it.
-  mat.items[index_at(mat, row, col)] = value;
+  mat->items[index_at(*mat, row, col)] = value;
 }
 
 KL_MatN_f32 kl_matn_f32_identity(int64_t n, KL_Allocator* allocator) {

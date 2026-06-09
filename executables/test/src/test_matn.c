@@ -102,7 +102,7 @@ void test_matn_f32_at_set() {
   KL_TEST_EXPECT_EQ_FLOAT(kl_matn_f32_at(m, 1, 2), 6.0f, MATN_EPS);
 
   // set writes through the shared backing store and is visible via at.
-  kl_matn_f32_set(m, 1, 1, 42.0f);
+  kl_matn_f32_set(&m, 1, 1, 42.0f);
   KL_TEST_EXPECT_EQ_FLOAT(kl_matn_f32_at(m, 1, 1), 42.0f, MATN_EPS);
   KL_TEST_EXPECT_EQ_FLOAT(m.items[1 * 3 + 1], 42.0f, MATN_EPS);
 
@@ -269,7 +269,7 @@ void test_matn_f32_mul_into() {
   KL_TEST_ASSERT(kl_matn_f32_equals(out, ref, MATN_EPS), "mul_into matches kl_matn_f32_mul");
 
   // A pre-filled destination is overwritten, not accumulated into.
-  kl_matn_f32_set(out, 0, 0, 999.0f);
+  kl_matn_f32_set(&out, 0, 0, 999.0f);
   kl_matn_f32_mul_into(m, b, &out);
   expect_mat(out, 2, 2, expected);
 
