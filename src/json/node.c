@@ -218,6 +218,11 @@ int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fal
 
   KL_JSONNode* selected = kl_json_node_select(node, path);
   if (selected == 0) return -1;
+
+  if (selected->type == KL_JSON_NODE_FLOAT) {
+    return (int64_t)selected->as.number_float;
+  }
+  
   if (selected->type != KL_JSON_NODE_INT) return -1;
 
   return selected->as.number_int;

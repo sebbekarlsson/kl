@@ -183,7 +183,6 @@ KL_JSONNode* kl_json_parser_parse(
   KL_StrConst content
 ) {
   assert(parser->initialized);
-  assert(parser->allocator.initialized == false);
   
   if (content.value == 0 || content.length <= 0) return 0;
 
@@ -201,16 +200,18 @@ KL_JSONNode* kl_json_parser_parse(
   parser->_.approx_num_arrays = approx_num_arrays;
   parser->_.approx_num_objects = approx_num_objects;
   parser->_.approx_num_strings = approx_num_strings;
-  
-  kl_allocator_init(&parser->allocator, (KL_AllocatorConfig){
-    .capacity = (
-      (
-        + approx_num_arrays
-        + approx_num_objects
-        + approx_num_strings
-      ) * sizeof(KL_JSONNode)
-    ) + content.length
-  });
+
+  if (!parser->allocator.initialized) {
+    kl_allocator_init(&parser->allocator, (KL_AllocatorConfig){
+      .capacity = (
+        (
+          + approx_num_arrays
+          + approx_num_objects
+          + approx_num_strings
+        ) * sizeof(KL_JSONNode)
+      ) + content.length
+    });
+  }
 
   parser->token.buffer.data = (char*)calloc(content.length + 1, sizeof(char));
   assert(parser->token.buffer.data != 0);
