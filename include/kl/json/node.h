@@ -38,6 +38,36 @@ struct KL_JSONNode {
 };
 
 
+/**
+* @brief allocates a node from `allocator` and copies `cfg` into it
+**/
+KL_JSONNode* kl_json_node_create(KL_Allocator* allocator, KL_JSONNode cfg);
+
+/**
+* @brief creates a string node; `value` is duplicated into `allocator`
+**/
+KL_JSONNode* kl_json_node_create_string(KL_Allocator* allocator, KL_StrConst value);
+
+/**
+* @brief creates an empty object node with an initialized member hashmap
+**/
+KL_JSONNode* kl_json_node_create_object(KL_Allocator* allocator);
+
+/**
+* @brief sets `obj[key] = value`; the key is copied into the object's hashmap
+**/
+bool kl_json_node_object_set(KL_JSONNode* obj, KL_StrConst key, KL_JSONNode* value);
+
+/**
+* @brief removes `key` from `obj`; returns false if it was not present
+**/
+bool kl_json_node_object_unset(KL_JSONNode* obj, KL_StrConst key);
+
+/**
+* @brief returns `obj[key]`, or 0 when `obj` is not an object or has no such key
+**/
+KL_JSONNode* kl_json_node_object_get(KL_JSONNode* obj, KL_StrConst key);
+
 bool kl_json_node_stringify(const KL_JSONNode* node, KL_StrBuffer* out);
 
 double kl_json_node_as_float(const KL_JSONNode* node);

@@ -8,6 +8,8 @@
 
 bool kl_fs_read_text_file(KL_StrConst filepath, KL_Str* out);
 
+bool kl_fs_write_text_file(KL_StrConst filepath, KL_StrConst content);
+
 bool kl_fs_file_exists(const char* filepath);
 
 bool kl_fs_is_directory(const char* filepath);

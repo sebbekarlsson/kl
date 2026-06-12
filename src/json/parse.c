@@ -43,11 +43,7 @@ void kl_json_parser_destroy(KL_JSONParser* parser) {
 
 static KL_JSONNode* create_node(KL_JSONParser* parser, KL_JSONNode cfg) {
   assert(parser->allocator != 0);
-  
-  KL_JSONNode* node = (KL_JSONNode*)kl_allocator_malloc_aligned(parser->allocator, sizeof(KL_JSONNode), alignof(KL_JSONNode));
-  assert(node != 0);
-  memcpy(node, &cfg, sizeof(KL_JSONNode));
-  return node;
+  return kl_json_node_create(parser->allocator, cfg);
 }
 
 static bool eat(KL_JSONParser* parser, KL_JSONTokenType toktype) {

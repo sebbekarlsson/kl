@@ -59,7 +59,7 @@ add_dependencies(${PROJ_NAME} generate_macros)
 ##################
 
 
-install(TARGETS ${PROJ_NAME} DESTINATION bin)
+install(TARGETS ${PROJ_NAME} DESTINATION lib)
 
 function (add_subproject SUB_DIR SUB_NAME)
   if (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${SUB_DIR}/${SUB_NAME})

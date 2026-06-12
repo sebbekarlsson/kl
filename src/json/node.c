@@ -1,10 +1,57 @@
 #include <kl/json/node.h>
 #include <kl/string/scanner.h>
 #include <ctype.h>
+#include <stdalign.h>
 
 KL_IMPL_LIST(json_node_ptr, KL_JSONNode*);
 KL_IMPL_LIST(json_node, KL_JSONNode);
 KL_IMPL_HASHMAP(json_node_ptr, KL_JSONNode*);
+
+KL_JSONNode* kl_json_node_create(KL_Allocator* allocator, KL_JSONNode cfg) {
+  assert(allocator != 0);
+
+  KL_JSONNode* node = (KL_JSONNode*)kl_allocator_malloc_aligned(allocator, sizeof(KL_JSONNode), alignof(KL_JSONNode));
+  assert(node != 0);
+  memcpy(node, &cfg, sizeof(KL_JSONNode));
+  return node;
+}
+
+KL_JSONNode* kl_json_node_create_string(KL_Allocator* allocator, KL_StrConst value) {
+  KL_JSONNode* node = kl_json_node_create(allocator, (KL_JSONNode){ .type = KL_JSON_NODE_STRING });
+  node->as.string = kl_str_const_strdup(value, allocator);
+  return node;
+}
+
+KL_JSONNode* kl_json_node_create_object(KL_Allocator* allocator) {
+  KL_JSONNode* node = kl_json_node_create(allocator, (KL_JSONNode){ .type = KL_JSON_NODE_OBJECT });
+  kl_json_node_ptr_hashmap_init(&node->as.object, (KL_HashmapConfig){
+    .capacity = 73,
+    .collision_capacity = 4,
+    .allocator = allocator,
+    .track_used_slots = true
+  });
+  return node;
+}
+
+bool kl_json_node_object_set(KL_JSONNode* obj, KL_StrConst key, KL_JSONNode* value) {
+  if (obj == 0 || obj->type != KL_JSON_NODE_OBJECT || !obj->as.object.initialized) return false;
+  if (key.value == 0 || key.length <= 0 || value == 0) return false;
+  return kl_json_node_ptr_hashmap_set(&obj->as.object, KL_STR_CONST_TO_BLOB(key), value) >= 0;
+}
+
+bool kl_json_node_object_unset(KL_JSONNode* obj, KL_StrConst key) {
+  if (obj == 0 || obj->type != KL_JSON_NODE_OBJECT || !obj->as.object.initialized) return false;
+  if (key.value == 0 || key.length <= 0) return false;
+  return kl_json_node_ptr_hashmap_unset(&obj->as.object, KL_STR_CONST_TO_BLOB(key)) != 0;
+}
+
+KL_JSONNode* kl_json_node_object_get(KL_JSONNode* obj, KL_StrConst key) {
+  if (obj == 0 || obj->type != KL_JSON_NODE_OBJECT || !obj->as.object.initialized) return 0;
+  if (key.value == 0 || key.length <= 0) return 0;
+  KL_JSONNode* value = 0;
+  if (!kl_json_node_ptr_hashmap_get(&obj->as.object, KL_STR_CONST_TO_BLOB(key), &value)) return 0;
+  return value;
+}
 
 
 
@@ -18,12 +65,12 @@ static bool stringify(const KL_JSONNode* node, KL_StrBuffer* out, int32_t pad) {
     };
     case KL_JSON_NODE_FLOAT: {
       char tmp[64] = {0};
-      snprintf(tmp, 64-1, "%1.9f\n", node->as.number_float);
+      snprintf(tmp, 64-1, "%1.9f", node->as.number_float);
       return kl_str_buffer_append(out, KL_STR_CONST(tmp));
     };
     case KL_JSON_NODE_INT: {
       char tmp[64] = {0};
-      snprintf(tmp, 64-1, "%ld\n", node->as.number_int);
+      snprintf(tmp, 64-1, "%ld", node->as.number_int);
       return kl_str_buffer_append(out, KL_STR_CONST(tmp));
     };
     case KL_JSON_NODE_BOOLEAN: return node->as.boolean == true ?
@@ -72,10 +119,10 @@ static bool stringify(const KL_JSONNode* node, KL_StrBuffer* out, int32_t pad) {
 
         if (i < (node->as.object.used_slots.length - 1)) {
           if (!kl_str_buffer_append_char(out, ',')) return false;
-          if (!kl_str_buffer_append_char(out, '\n')) return false;
         }
+        if (!kl_str_buffer_append_char(out, '\n')) return false;
       }
-      
+
       kl_str_buffer_repeat_char(out, ' ', pad);
       if (!kl_str_buffer_append_char(out, '}')) return false;
 

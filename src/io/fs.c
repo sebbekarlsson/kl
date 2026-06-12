@@ -39,6 +39,24 @@ bool kl_fs_read_text_file(KL_StrConst filepath, KL_Str* out) {
   return true;
 }
 
+bool kl_fs_write_text_file(KL_StrConst filepath, KL_StrConst content) {
+  assert(filepath.value != 0);
+  assert(filepath.length > 0);
+
+  FILE* fp = fopen(filepath.value, "w");
+  if (fp == 0) return false;
+
+  bool ok = true;
+  if (content.value != 0 && content.length > 0) {
+    ok = fwrite(&content.value[0], sizeof(char), content.length, fp) == (size_t)content.length;
+  }
+
+  fclose(fp);
+  fp = 0;
+
+  return ok;
+}
+
 bool kl_fs_file_exists(const char *filepath) {
   if (filepath == 0)
     return false;
