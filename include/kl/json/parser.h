@@ -12,7 +12,8 @@
 
 typedef struct {
   bool initialized;
-  KL_Allocator allocator;
+  KL_Allocator _allocator;
+  KL_Allocator *allocator;
   KL_JSONToken token;
   KL_StrScanner scanner;
 
@@ -26,6 +27,8 @@ typedef struct {
 } KL_JSONParser;
 
 void kl_json_parser_init(KL_JSONParser* parser);
+
+void kl_json_parser_init_with_allocator(KL_JSONParser* parser, KL_Allocator* allocator);
 
 void kl_json_parser_destroy(KL_JSONParser* parser);
 

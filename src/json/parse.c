@@ -14,15 +14,22 @@ void kl_json_parser_init(KL_JSONParser* parser) {
   // we only zero out the struct
   // and intentionally don't initialize the allocator here because
   // we can later try to infer the best capactiy from the content
-  assert(parser->allocator.initialized == false);
   memset(parser, 0, sizeof(KL_JSONParser));
-
+  parser->allocator = &parser->_allocator;
   parser->initialized = true;
+}
+
+void kl_json_parser_init_with_allocator(KL_JSONParser* parser, KL_Allocator* allocator) {
+  if (parser->initialized) return;
+  kl_json_parser_init(parser);
+  parser->allocator = allocator;
 }
 
 void kl_json_parser_destroy(KL_JSONParser* parser) {
   assert(parser->initialized);
-  kl_allocator_destroy(&parser->allocator);
+  if (parser->_allocator.initialized) {
+    kl_allocator_destroy(&parser->_allocator);
+  }
 
   if (parser->token.buffer.data != 0) {
     free(parser->token.buffer.data);
@@ -35,7 +42,9 @@ void kl_json_parser_destroy(KL_JSONParser* parser) {
 
 
 static KL_JSONNode* create_node(KL_JSONParser* parser, KL_JSONNode cfg) {
-  KL_JSONNode* node = (KL_JSONNode*)kl_allocator_malloc_aligned(&parser->allocator, sizeof(KL_JSONNode), alignof(KL_JSONNode));
+  assert(parser->allocator != 0);
+  
+  KL_JSONNode* node = (KL_JSONNode*)kl_allocator_malloc_aligned(parser->allocator, sizeof(KL_JSONNode), alignof(KL_JSONNode));
   assert(node != 0);
   memcpy(node, &cfg, sizeof(KL_JSONNode));
   return node;
@@ -55,7 +64,7 @@ static KL_JSONNode* parse(KL_JSONParser* parser);
 static KL_JSONNode* parse_string(KL_JSONParser* parser) {
   KL_JSONNode* node = create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_STRING });
   if (parser->token.buffer.length > 0) {
-    node->as.string.value = kl_allocator_strdup(&parser->allocator, parser->token.buffer.data, parser->token.buffer.length);
+    node->as.string.value = kl_allocator_strdup(parser->allocator, parser->token.buffer.data, parser->token.buffer.length);
     node->as.string.length = parser->token.buffer.length;
   }
   eat(parser, KL_JSON_TOKEN_STRING);
@@ -65,7 +74,7 @@ static KL_JSONNode* parse_string(KL_JSONParser* parser) {
 
 static KL_JSONNode* parse_obj_member(KL_JSONParser* parser, KL_JSONNode* obj) {
   if (parser->token.type != KL_JSON_TOKEN_STRING) return create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_PARSER_ERROR });
-  char* key = (char*)kl_allocator_strdup(&parser->allocator, parser->token.buffer.data, parser->token.buffer.length);
+  char* key = (char*)kl_allocator_strdup(parser->allocator, parser->token.buffer.data, parser->token.buffer.length);
   assert(key != 0);
   KL_StrConst k = {
     .value = key,
@@ -116,7 +125,7 @@ static KL_JSONNode* parse(KL_JSONParser* parser) {
       KL_JSONNode* arr = create_node(parser, (KL_JSONNode){ .type = KL_JSON_NODE_ARRAY });
       kl_json_node_ptr_list_init(&arr->as.array, (KL_ListConfig){
         .capacity = 4,
-        .allocator = &parser->allocator
+        .allocator = parser->allocator
       });
 
       if (parser->token.type == KL_JSON_TOKEN_ARRAY_END) {
@@ -147,7 +156,7 @@ static KL_JSONNode* parse(KL_JSONParser* parser) {
       kl_json_node_ptr_hashmap_init(&obj->as.object, (KL_HashmapConfig){
         .capacity = KL_MAX(73, parser->_.approx_num_strings),
         .collision_capacity = 4,
-        .allocator = &parser->allocator,
+        .allocator = parser->allocator,
         .track_used_slots = true
       });
       if (parser->token.type == KL_JSON_TOKEN_OBJECT_END) {
@@ -183,6 +192,7 @@ KL_JSONNode* kl_json_parser_parse(
   KL_StrConst content
 ) {
   assert(parser->initialized);
+  assert(parser->allocator != 0);
   
   if (content.value == 0 || content.length <= 0) return 0;
 
@@ -201,8 +211,8 @@ KL_JSONNode* kl_json_parser_parse(
   parser->_.approx_num_objects = approx_num_objects;
   parser->_.approx_num_strings = approx_num_strings;
 
-  if (!parser->allocator.initialized) {
-    kl_allocator_init(&parser->allocator, (KL_AllocatorConfig){
+  if (!parser->allocator->initialized) {
+    kl_allocator_init(parser->allocator, (KL_AllocatorConfig){
       .capacity = (
         (
           + approx_num_arrays
