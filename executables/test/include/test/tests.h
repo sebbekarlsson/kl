@@ -33,6 +33,7 @@
 #include <kl/json/parser.h>
 #include <kl/path/path.h>
 #include <kl/cli/args.h>
+#include <kl/cli/program.h>
 #include <kl/math/vec2.h>
 #include <kl/math/vec3.h>
 #include <kl/math/vec4.h>
@@ -245,6 +246,9 @@ void test_path_cwd(KL_TestFunctionContext* ctx);
 void test_cli_get_arg_space_syntax(KL_TestFunctionContext* ctx);
 void test_cli_get_arg_equals_syntax(KL_TestFunctionContext* ctx);
 void test_cli_get_arg_quoted_values(KL_TestFunctionContext* ctx);
+void test_cli_program_positionals(KL_TestFunctionContext* ctx);
+void test_cli_program_positional_defaults_and_required(KL_TestFunctionContext* ctx);
+void test_cli_program_typed_and_extra_positionals(KL_TestFunctionContext* ctx);
 
 /* ===================== binary_pool (test_binary_pool.c) ===================== */
 void test_binary_pool_init_destroy();

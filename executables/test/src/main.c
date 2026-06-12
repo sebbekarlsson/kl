@@ -198,6 +198,9 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_cli_get_arg_space_syntax),
     KL_TEST_ENTRY(test_cli_get_arg_equals_syntax),
     KL_TEST_ENTRY(test_cli_get_arg_quoted_values),
+    KL_TEST_ENTRY(test_cli_program_positionals),
+    KL_TEST_ENTRY(test_cli_program_positional_defaults_and_required),
+    KL_TEST_ENTRY(test_cli_program_typed_and_extra_positionals),
 
     KL_TEST_ENTRY(test_binary_pool_init_destroy),
     KL_TEST_ENTRY(test_binary_pool_double_init_is_noop),
