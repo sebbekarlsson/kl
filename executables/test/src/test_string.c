@@ -77,6 +77,8 @@ void test_str_const_replace(KL_TestFunctionContext* ctx) {
   // no match leaves the string unchanged
   KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("hello"), KL_STR_CONST_LIT("xyz"), KL_STR_CONST_LIT("abc"), false, &buffer), KL_STR_CONST_LIT("hello"));
 
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foobar.wav"), KL_STR_CONST_LIT(".wav"), KL_STR_CONST_LIT(""), false, &buffer), KL_STR_CONST_LIT("foobar"));
+
   // --- replace-all (all = true) ---
   // every occurrence is replaced
   KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foo foo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("baz"), true, &buffer), KL_STR_CONST_LIT("baz baz"));

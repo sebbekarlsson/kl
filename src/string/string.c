@@ -179,7 +179,7 @@ KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrCons
     return str;
   }
 
-  if (repl.length <= 0 || repl.value == 0 || str.length < search.length) {
+  if (str.length < search.length) {
     return str;
   }
 
