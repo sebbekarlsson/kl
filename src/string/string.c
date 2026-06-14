@@ -1,4 +1,5 @@
 #include <kl/string/string.h>
+#include <kl/string/scanner.h>
 #include <kl/macros.h>
 #include <ctype.h>
 #include <assert.h>
@@ -104,6 +105,25 @@ KL_StrConst kl_str_const_remove_prefix(KL_StrConst str, KL_StrConst sub) {
     .value = &str.value[sub.length],
     .length = KL_MAX(0, str.length - sub.length)
   };
+}
+
+KL_StrConst kl_str_const_remove_numeric_prefix(KL_StrConst str) {
+  if (str.value == 0 || str.length <= 0) return str;
+
+  KL_StrScanner scanner = {0};
+  if (!kl_str_scanner_init(&scanner, str)) return str;
+
+  while (kl_str_scanner_has_more(&scanner) && isdigit(scanner.c)) {
+    kl_str_scanner_advance(&scanner, 1);
+    if (scanner.c == '.') {
+      kl_str_scanner_advance(&scanner, 1);
+    }
+  }
+
+  if (scanner.i <= 0) return str;
+  if (scanner.i >= str.length) return (KL_StrConst){0};
+
+  return kl_str_const_slice(str, scanner.i - 1, str.length - (scanner.i - 1));
 }
 
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub) {

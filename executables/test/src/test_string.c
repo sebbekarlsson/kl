@@ -42,6 +42,13 @@ void test_str_const_includes() {
   KL_TEST_EXPECT_EXPR(!kl_str_const_includes(KL_STR_CONST_LIT("the quick brown fox jumps over the lazy dog"), KL_STR_CONST_LIT("abc123")));
 }
 
+void test_str_const_remove_numeric_prefix(KL_TestFunctionContext* ctx) {
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_prefix(KL_STR_CONST_LIT("04hello.wav")), KL_STR_CONST_LIT("hello.wav")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_prefix(KL_STR_CONST_LIT("0.4hello.wav")), KL_STR_CONST_LIT("hello.wav")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_prefix(KL_STR_CONST_LIT("6hello.wav")), KL_STR_CONST_LIT("hello.wav")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_prefix(KL_STR_CONST_LIT("3.356hello.wav")), KL_STR_CONST_LIT("hello.wav")));
+}
+
 void test_jaro_winkler_identical_returns_one() {
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("hello"), KL_STR_CONST_LIT("hello"), 0.1f), 1.0f, 0.0001f);
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("the quick brown fox"), KL_STR_CONST_LIT("the quick brown fox"), 0.1f), 1.0f, 0.0001f);
