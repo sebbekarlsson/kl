@@ -34,6 +34,8 @@ int kl_NAME_list_pop_at(KL_NAME_List* list, int64_t idx, T_X* out);
 
 void kl_NAME_list_grow(KL_NAME_List *list, int64_t n_slots);
 
+void kl_NAME_list_concat(KL_NAME_List *list, const KL_NAME_List *other);
+
 bool kl_NAME_list_includes(KL_NAME_List* list, T_X item);
 
 int64_t kl_NAME_list_index_of(KL_NAME_List* list, T_X item);

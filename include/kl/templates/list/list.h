@@ -17,26 +17,27 @@ This file was automatically generated and must not be modified directly.
 #include <stdalign.h>
 
 
-#define KL_DEFINE_LIST(NAME, T)                                              \
-  typedef struct {                                                           \
-    KL_ListConfig config;                                                    \
-    size_t alignment;                                                        \
-    T* items;                                                                \
-    KL_Allocation allocation;                                                \
-    volatile int64_t n_slots_allocated;                                      \
-    volatile int64_t length;                                                 \
-    volatile int64_t current_capacity;                                       \
-    bool initialized;                                                        \
-  } KL_##NAME##_List;                                                        \
-  int kl_##NAME##_list_init(KL_##NAME##_List* list, KL_ListConfig cfg);      \
-  void kl_##NAME##_list_destroy(KL_##NAME##_List* list);                     \
-  void kl_##NAME##_list_reset(KL_##NAME##_List* list);                       \
-  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item);                \
-  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);          \
-  int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                  \
-  int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);  \
-  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);       \
-  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);            \
+#define KL_DEFINE_LIST(NAME, T)                                                         \
+  typedef struct {                                                                      \
+    KL_ListConfig config;                                                               \
+    size_t alignment;                                                                   \
+    T* items;                                                                           \
+    KL_Allocation allocation;                                                           \
+    volatile int64_t n_slots_allocated;                                                 \
+    volatile int64_t length;                                                            \
+    volatile int64_t current_capacity;                                                  \
+    bool initialized;                                                                   \
+  } KL_##NAME##_List;                                                                   \
+  int kl_##NAME##_list_init(KL_##NAME##_List* list, KL_ListConfig cfg);                 \
+  void kl_##NAME##_list_destroy(KL_##NAME##_List* list);                                \
+  void kl_##NAME##_list_reset(KL_##NAME##_List* list);                                  \
+  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item);                           \
+  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);                     \
+  int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                             \
+  int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);             \
+  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);                  \
+  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other);  \
+  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);                       \
   int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item);
 
 
@@ -96,6 +97,19 @@ This file was automatically generated and must not be modified directly.
     assert(list->items != 0);                                                                    \
     memset(&list->items[list->n_slots_allocated], 0, n_slots * sizeof(T));                       \
     list->n_slots_allocated += n_slots;                                                          \
+  }                                                                                              \
+  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other) {          \
+    assert(list->initialized == true);                                                           \
+    if (other == 0 || other->items == 0 || other->length <= 0)                                   \
+      return;                                                                                    \
+    int64_t avail = list->n_slots_allocated - list->length;                                      \
+    if (avail < other->length) {                                                                 \
+      kl_##NAME##_list_grow(list, other->length - avail);                                        \
+    }                                                                                            \
+    assert(list->items != 0);                                                                    \
+    memcpy(&list->items[list->length], &other->items[0],                                         \
+           other->length * sizeof(T));                                                           \
+    list->length += other->length;                                                               \
   }                                                                                              \
   void kl_##NAME##_list_push(KL_##NAME##_List *list, T item) {                                   \
     assert(list->initialized == true);                                                           \

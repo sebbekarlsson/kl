@@ -69,6 +69,23 @@ void kl_NAME_list_grow(KL_NAME_List *list, int64_t n_slots) {
   list->n_slots_allocated += n_slots;
 }
 
+void kl_NAME_list_concat(KL_NAME_List *list, const KL_NAME_List *other) {
+  assert(list->initialized == true);
+
+  if (other == 0 || other->items == 0 || other->length <= 0)
+    return;
+
+  int64_t avail = list->n_slots_allocated - list->length;
+  if (avail < other->length) {
+    kl_NAME_list_grow(list, other->length - avail);
+  }
+  assert(list->items != 0);
+
+  memcpy(&list->items[list->length], &other->items[0],
+         other->length * sizeof(T_X));
+  list->length += other->length;
+}
+
 void kl_NAME_list_push(KL_NAME_List *list, T_X item) {
   assert(list->initialized == true);
   assert(list->current_capacity > 0);

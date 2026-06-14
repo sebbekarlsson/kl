@@ -95,6 +95,10 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_int64_list_handles_negative_and_extreme_values),
     KL_TEST_ENTRY(test_int64_list_stress_many_elements),
     KL_TEST_ENTRY(test_int64_list_pop_at_drains_from_front),
+    KL_TEST_ENTRY(test_int64_list_concat_basic),
+    KL_TEST_ENTRY(test_int64_list_concat_onto_empty),
+    KL_TEST_ENTRY(test_int64_list_concat_empty_source_is_noop),
+    KL_TEST_ENTRY(test_int64_list_concat_large_forces_grow),
 
     KL_TEST_ENTRY(test_int64_unique_list_init_destroy),
     KL_TEST_ENTRY(test_int64_unique_list_double_init_is_noop),

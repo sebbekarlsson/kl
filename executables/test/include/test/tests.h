@@ -137,6 +137,10 @@ void test_int64_list_push_pop_interleaved();
 void test_int64_list_handles_negative_and_extreme_values();
 void test_int64_list_stress_many_elements();
 void test_int64_list_pop_at_drains_from_front();
+void test_int64_list_concat_basic();
+void test_int64_list_concat_onto_empty();
+void test_int64_list_concat_empty_source_is_noop();
+void test_int64_list_concat_large_forces_grow();
 
 /* ===================== int64_unique_list (test_unique_list.c) ===================== */
 void test_int64_unique_list_init_destroy();

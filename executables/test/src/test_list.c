@@ -501,6 +501,87 @@ void test_int64_list_stress_many_elements() {
   kl_int64_list_destroy(&list);
 }
 
+void test_int64_list_concat_basic() {
+  KL_int64_List a = {0};
+  KL_int64_List b = {0};
+  kl_int64_list_init(&a, (KL_ListConfig){ .capacity = 4 });
+  kl_int64_list_init(&b, (KL_ListConfig){ .capacity = 4 });
+
+  for (int i = 0; i < 3; i++) kl_int64_list_push(&a, i);       // [0,1,2]
+  for (int i = 0; i < 3; i++) kl_int64_list_push(&b, 10 + i);  // [10,11,12]
+
+  kl_int64_list_concat(&a, &b);
+  KL_TEST_EXPECT_EQ_INT(a.length, 6);
+  int expected[] = { 0, 1, 2, 10, 11, 12 };
+  for (int i = 0; i < 6; i++) KL_TEST_EXPECT_EQ_INT((int)a.items[i], expected[i]);
+
+  // The source list is untouched.
+  KL_TEST_EXPECT_EQ_INT(b.length, 3);
+  for (int i = 0; i < 3; i++) KL_TEST_EXPECT_EQ_INT((int)b.items[i], 10 + i);
+
+  kl_int64_list_destroy(&a);
+  kl_int64_list_destroy(&b);
+}
+
+void test_int64_list_concat_onto_empty() {
+  KL_int64_List a = {0};
+  KL_int64_List b = {0};
+  kl_int64_list_init(&a, (KL_ListConfig){ .capacity = 2 });
+  kl_int64_list_init(&b, (KL_ListConfig){ .capacity = 2 });
+
+  // a has never been pushed to (items == 0); concat must grow it.
+  for (int i = 0; i < 5; i++) kl_int64_list_push(&b, i * 100);
+
+  kl_int64_list_concat(&a, &b);
+  KL_TEST_EXPECT_EQ_INT(a.length, 5);
+  KL_TEST_ASSERT(a.items != 0, "buffer allocated by concat");
+  for (int i = 0; i < 5; i++) KL_TEST_EXPECT_EQ_INT((int)a.items[i], i * 100);
+
+  kl_int64_list_destroy(&a);
+  kl_int64_list_destroy(&b);
+}
+
+void test_int64_list_concat_empty_source_is_noop() {
+  KL_int64_List a = {0};
+  KL_int64_List b = {0};
+  kl_int64_list_init(&a, (KL_ListConfig){ .capacity = 4 });
+  kl_int64_list_init(&b, (KL_ListConfig){ .capacity = 4 });
+
+  for (int i = 0; i < 3; i++) kl_int64_list_push(&a, i);
+
+  // Empty (never-pushed) source.
+  kl_int64_list_concat(&a, &b);
+  KL_TEST_EXPECT_EQ_INT(a.length, 3);
+  for (int i = 0; i < 3; i++) KL_TEST_EXPECT_EQ_INT((int)a.items[i], i);
+
+  // Null source.
+  kl_int64_list_concat(&a, 0);
+  KL_TEST_EXPECT_EQ_INT(a.length, 3);
+
+  kl_int64_list_destroy(&a);
+  kl_int64_list_destroy(&b);
+}
+
+void test_int64_list_concat_large_forces_grow() {
+  KL_int64_List a = {0};
+  KL_int64_List b = {0};
+  kl_int64_list_init(&a, (KL_ListConfig){ .capacity = 4 });
+  kl_int64_list_init(&b, (KL_ListConfig){ .capacity = 4 });
+
+  for (int i = 0; i < 10; i++) kl_int64_list_push(&a, i);
+  enum { M = 1000 };
+  for (int i = 0; i < M; i++) kl_int64_list_push(&b, 1000 + i);
+
+  kl_int64_list_concat(&a, &b);
+  KL_TEST_EXPECT_EQ_INT(a.length, 10 + M);
+  KL_TEST_ASSERT(a.n_slots_allocated >= 10 + M, "buffer large enough after concat");
+  for (int i = 0; i < 10; i++) KL_TEST_EXPECT_EQ_INT((int)a.items[i], i);
+  for (int i = 0; i < M; i++) KL_TEST_EXPECT_EQ_INT((int)a.items[10 + i], 1000 + i);
+
+  kl_int64_list_destroy(&a);
+  kl_int64_list_destroy(&b);
+}
+
 void test_int64_list_pop_at_drains_from_front() {
   // Repeatedly popping index 0 should yield the original insertion order.
   KL_int64_List list = {0};
