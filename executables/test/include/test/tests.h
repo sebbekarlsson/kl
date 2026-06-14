@@ -48,6 +48,7 @@ void test_str_const_eq();
 void test_str_const_slice();
 void test_str_const_includes();
 void test_str_const_remove_numeric_prefix(KL_TestFunctionContext* ctx);
+void test_str_const_replace(KL_TestFunctionContext* ctx);
 void test_str_scanner(KL_TestFunctionContext* ctx);
 void test_jaro_winkler_identical_returns_one();
 void test_jaro_winkler_empty_returns_zero();

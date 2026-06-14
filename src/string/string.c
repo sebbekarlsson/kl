@@ -43,6 +43,22 @@ bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub) {
   return false;
 }
 
+int64_t kl_str_const_first_index_of(KL_StrConst str, KL_StrConst sub) {
+  if (str.length <= 0 || str.value == 0) return -1;
+  if (sub.length <= 0 || sub.value == 0) return -1;
+  KL_StrScanner scanner = {0};
+  if (!kl_str_scanner_init(&scanner, str)) return -1;
+
+  while (kl_str_scanner_has_more(&scanner)) {
+    if (kl_str_scanner_has(&scanner, sub)) {
+      return scanner.i - 1;
+    }
+    kl_str_scanner_advance(&scanner, 1);
+  }
+
+  return -1;
+}
+
 bool kl_str_const_is_integer(KL_StrConst str) {
   if (str.value == 0 || str.length <= 0) return false;
 
@@ -91,7 +107,7 @@ KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length) 
 
   return (KL_StrConst){
     .value = &str.value[offset],
-    .length = KL_CLAMP(length, 0, str.length)
+    .length = KL_CLAMP(length, 0, str.length - offset)
   };
 }
 
@@ -152,6 +168,48 @@ KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator) {
   };
 }
 
+KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrConst repl, bool all, KL_StrBuffer* buffer) {
+  assert(buffer != 0);
+
+  // The buffer is scratch space owned by this call: start fresh and build the
+  // whole result into it, then hand the buffer back as the result.
+  kl_str_buffer_clear(buffer);
+
+  if (str.length <= 0 || str.value == 0) {
+    return str;
+  }
+
+  if (repl.length <= 0 || repl.value == 0 || str.length < search.length) {
+    return str;
+  }
+
+  KL_StrConst rest = str;
+  bool replaced = false;
+
+  while (rest.length >= search.length) {
+    int64_t idx = kl_str_const_first_index_of(rest, search);
+    if (idx < 0) break;
+
+    assert(idx >= 0);
+    assert(idx < rest.length);
+
+    KL_StrConst left = kl_str_const_slice(rest, 0, idx);
+    kl_str_buffer_append(buffer, left);
+    kl_str_buffer_append(buffer, repl);
+
+    int64_t consumed = idx + search.length;
+    rest = kl_str_const_slice(rest, consumed, rest.length - consumed);
+    replaced = true;
+
+    if (!all) break;
+  }
+
+  // Append whatever remains: the tail after the last match, or the whole
+  // string when nothing matched at all.
+  kl_str_buffer_append(buffer, replaced ? rest : str);
+
+  return (KL_StrConst){ .value = buffer->data, .length = buffer->length };
+}
 
 static inline bool kl_str_buffer_fit(KL_StrBuffer* buff, int64_t extra) {
   if (buff->allocator == 0) return false;

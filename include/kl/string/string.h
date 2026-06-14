@@ -31,6 +31,8 @@ bool kl_str_const_ends_with(KL_StrConst str, KL_StrConst sub);
 
 bool kl_str_const_includes(KL_StrConst str, KL_StrConst sub);
 
+int64_t kl_str_const_first_index_of(KL_StrConst str, KL_StrConst sub);
+
 bool kl_str_const_is_integer(KL_StrConst str);
 
 // True if the string is an integer or a decimal float (e.g. "3", "-3", "3.14").
@@ -69,5 +71,12 @@ bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c);
 bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content);
 bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count);
 void kl_str_buffer_clear(KL_StrBuffer* buff);
+
+// Replaces occurrences of `search` with `repl`, using the caller-provided
+// `buffer` as scratch space (so the call-site owns the allocation strategy).
+// The buffer is cleared on entry; when `all` is true every occurrence is
+// replaced, otherwise only the first. Returns a view of the buffer holding the
+// result. The view is only valid until the next write to `buffer`.
+KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrConst repl, bool all, KL_StrBuffer* buffer);
 
 #endif

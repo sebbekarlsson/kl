@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <math.h>
+#include <kl/string/string.h>
 
 #define KL_TEST_TEMP_BUFFER_CAP 2048
 #define KL_TEST_MAX_SUBTESTS 128
@@ -196,5 +197,22 @@ void kl_test_run_entry(KL_TestEntry* entry);
 #define KL_TEST_EXPECT_EQ_INT(A, B) KL_TEST_ASSERT((A) == (B), KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B))
 #define KL_TEST_EXPECT_EQ_CHAR(A, B) KL_TEST_ASSERT((A) == (B), KL_TEST_EXPECT_EQ_ERROR_MESSAGE(A, B))
 #define KL_TEST_EXPECT_EQ_FLOAT(A, B, T) KL_TEST_ASSERT(fabsf((float)(A) - (float)(B)) <= (float)(T), KL_TEST_EXPECT_EQ_FLOAT_ERROR_MESSAGE(A, B, T))
+
+// Compares two KL_StrConst for equality, reporting both the actual and the
+// expected value on failure. The message is built at runtime so the offending
+// string contents are visible in the failure output.
+#define KL_TEST_EXPECT_EQ_STR(A, B) do { \
+  KL_StrConst _kl_actual = (A); \
+  KL_StrConst _kl_expected = (B); \
+  if (!kl_str_const_eq(_kl_actual, _kl_expected)) { \
+    char _kl_str_msg[KL_TEST_TEMP_BUFFER_CAP]; \
+    snprintf(_kl_str_msg, sizeof(_kl_str_msg), \
+      "expected \"%.*s\" (len %d) to equal \"%.*s\" (len %d)", \
+      (int)_kl_actual.length, _kl_actual.value ? _kl_actual.value : "", (int)_kl_actual.length, \
+      (int)_kl_expected.length, _kl_expected.value ? _kl_expected.value : "", (int)_kl_expected.length); \
+    KL_TEST_PRINT_ASSERT_FAILURE(_kl_str_msg); \
+    KL_TEST_FAILED(); \
+  } \
+} while (0)
 
 #endif

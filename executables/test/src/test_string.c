@@ -49,6 +49,68 @@ void test_str_const_remove_numeric_prefix(KL_TestFunctionContext* ctx) {
   KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_prefix(KL_STR_CONST_LIT("3.356hello.wav")), KL_STR_CONST_LIT("hello.wav")));
 }
 
+
+void test_str_const_replace(KL_TestFunctionContext* ctx) {
+  KL_Allocator allocator = {0};
+  kl_allocator_init(&allocator, (KL_AllocatorConfig){ .capacity = 1024 });
+
+  // The buffer is scratch space; kl_str_const_replace clears it on entry, so it
+  // can be reused across every call below.
+  KL_StrBuffer buffer = {0};
+  buffer.allocator = &allocator;
+
+  // --- single replacement (all = false) ---
+  // match at the start
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foo bar"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("baz"), false, &buffer), KL_STR_CONST_LIT("baz bar"));
+  // match at the end
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("bar foo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("baz"), false, &buffer), KL_STR_CONST_LIT("bar baz"));
+  // match in the middle
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("abcXYZdef"), KL_STR_CONST_LIT("XYZ"), KL_STR_CONST_LIT("-"), false, &buffer), KL_STR_CONST_LIT("abc-def"));
+  // search spans the entire string
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("bar"), false, &buffer), KL_STR_CONST_LIT("bar"));
+  // replacement longer than the search
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("a-b"), KL_STR_CONST_LIT("-"), KL_STR_CONST_LIT("___"), false, &buffer), KL_STR_CONST_LIT("a___b"));
+  // replacement shorter than the search
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("hello world"), KL_STR_CONST_LIT("world"), KL_STR_CONST_LIT("!"), false, &buffer), KL_STR_CONST_LIT("hello !"));
+  // only the first occurrence is replaced
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foo foo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("baz"), false, &buffer), KL_STR_CONST_LIT("baz foo"));
+  // no match leaves the string unchanged
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("hello"), KL_STR_CONST_LIT("xyz"), KL_STR_CONST_LIT("abc"), false, &buffer), KL_STR_CONST_LIT("hello"));
+
+  // --- replace-all (all = true) ---
+  // every occurrence is replaced
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foo foo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("baz"), true, &buffer), KL_STR_CONST_LIT("baz baz"));
+  // matches at start, middle and end
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("a.b.c.d"), KL_STR_CONST_LIT("."), KL_STR_CONST_LIT("/"), true, &buffer), KL_STR_CONST_LIT("a/b/c/d"));
+  // adjacent matches
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("aaaa"), KL_STR_CONST_LIT("a"), KL_STR_CONST_LIT("bb"), true, &buffer), KL_STR_CONST_LIT("bbbbbbbb"));
+  // multi-char search with a longer replacement
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("x and y and z"), KL_STR_CONST_LIT("and"), KL_STR_CONST_LIT("AND"), true, &buffer), KL_STR_CONST_LIT("x AND y AND z"));
+  // replacement contains the search text: only the original occurrences are replaced (no infinite loop)
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("a a"), KL_STR_CONST_LIT("a"), KL_STR_CONST_LIT("aa"), true, &buffer), KL_STR_CONST_LIT("aa aa"));
+  // no match leaves the string unchanged
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("hello"), KL_STR_CONST_LIT("xyz"), KL_STR_CONST_LIT("abc"), true, &buffer), KL_STR_CONST_LIT("hello"));
+
+  // --- more replace-all stress cases ---
+  // many single-char occurrences
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("a,b,c,d,e"), KL_STR_CONST_LIT(","), KL_STR_CONST_LIT(";"), true, &buffer), KL_STR_CONST_LIT("a;b;c;d;e"));
+  // multi-char search collapsing to a shorter replacement, back to back
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("foofoofoo"), KL_STR_CONST_LIT("foo"), KL_STR_CONST_LIT("x"), true, &buffer), KL_STR_CONST_LIT("xxx"));
+  // multi-char search with multi-char replacement, no separators
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("ababab"), KL_STR_CONST_LIT("ab"), KL_STR_CONST_LIT("CD"), true, &buffer), KL_STR_CONST_LIT("CDCDCD"));
+  // matches are consumed, so overlapping candidates do not re-match: "aaa"/"aa" -> "b" + leftover "a"
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("aaa"), KL_STR_CONST_LIT("aa"), KL_STR_CONST_LIT("b"), true, &buffer), KL_STR_CONST_LIT("ba"));
+  // interleaved matches and non-matching text are both preserved
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("the cat sat on the mat"), KL_STR_CONST_LIT("at"), KL_STR_CONST_LIT("AT"), true, &buffer), KL_STR_CONST_LIT("the cAT sAT on the mAT"));
+  // every character matches
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("aaaaa"), KL_STR_CONST_LIT("a"), KL_STR_CONST_LIT("a"), true, &buffer), KL_STR_CONST_LIT("aaaaa"));
+  // same input, all=false vs all=true, to contrast the two modes
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("x.y.z"), KL_STR_CONST_LIT("."), KL_STR_CONST_LIT("/"), false, &buffer), KL_STR_CONST_LIT("x/y.z"));
+  KL_TEST_EXPECT_EQ_STR(kl_str_const_replace(KL_STR_CONST_LIT("x.y.z"), KL_STR_CONST_LIT("."), KL_STR_CONST_LIT("/"), true, &buffer), KL_STR_CONST_LIT("x/y/z"));
+
+  kl_allocator_destroy(&allocator);
+}
+
 void test_jaro_winkler_identical_returns_one() {
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("hello"), KL_STR_CONST_LIT("hello"), 0.1f), 1.0f, 0.0001f);
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("the quick brown fox"), KL_STR_CONST_LIT("the quick brown fox"), 0.1f), 1.0f, 0.0001f);

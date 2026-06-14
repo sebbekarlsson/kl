@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_str_const_slice),
     KL_TEST_ENTRY(test_str_const_includes),
     KL_TEST_ENTRY(test_str_const_remove_numeric_prefix),
+    KL_TEST_ENTRY(test_str_const_replace),
     KL_TEST_ENTRY(test_str_scanner),
     KL_TEST_ENTRY(test_jaro_winkler_identical_returns_one),
     KL_TEST_ENTRY(test_jaro_winkler_empty_returns_zero),

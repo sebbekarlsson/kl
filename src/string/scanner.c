@@ -149,7 +149,7 @@ KL_StrConst kl_str_scanner_slice(KL_StrScanner* scanner, int64_t length) {
   assert(scanner->str.length > 0);
   int64_t start = (scanner->i - 1);
   int64_t end = start + length;
-  if (start < 0 || end < 0 || start >= scanner->str.length || end >= scanner->str.length) return (KL_StrConst){0};
+  if (start < 0 || end < 0 || start >= scanner->str.length || end > scanner->str.length) return (KL_StrConst){0};
 
   return (KL_StrConst){
     .value = &scanner->str.value[start],
