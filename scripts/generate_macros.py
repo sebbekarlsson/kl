@@ -217,6 +217,12 @@ if __name__ == '__main__':
         typename='bool',
         name='bool'
     )
+    generate_type(
+        includes=[f'#include <{NAME}/templates/list/int64_list.h>'],
+        template_name='hashmap',
+        typename='KL_int64_List',
+        name='int64_list'
+    )
 
 
     # sparse_set
