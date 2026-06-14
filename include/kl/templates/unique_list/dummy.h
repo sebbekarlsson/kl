@@ -37,4 +37,6 @@ bool kl_NAME_unique_list_includes(KL_NAME_UniqueList* list, T_X item);
 
 int64_t kl_NAME_unique_list_index_of(KL_NAME_UniqueList* list, T_X item);
 
+bool kl_NAME_unique_list_remove(KL_NAME_UniqueList* list, T_X item);
+
 #endif

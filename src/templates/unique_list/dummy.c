@@ -94,3 +94,10 @@ int64_t kl_NAME_unique_list_index_of(KL_NAME_UniqueList* list, T_X item) {
   assert(idx < list->_list.length);
   return idx;
 }
+
+bool kl_NAME_unique_list_remove(KL_NAME_UniqueList* list, T_X item) {
+  assert(list->initialized);
+  int64_t idx = kl_NAME_unique_list_index_of(list, item);
+  if (idx < 0) return false;
+  return kl_NAME_unique_list_pop_at(list, idx, 0);
+}

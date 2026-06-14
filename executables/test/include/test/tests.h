@@ -159,6 +159,8 @@ void test_int64_unique_list_pop_at_last_keeps_others();
 void test_int64_unique_list_pop_at_out_of_range_returns_false();
 void test_int64_unique_list_pop_at_empty_returns_false();
 void test_int64_unique_list_pop_at_drains_from_front();
+void test_int64_unique_list_remove_by_value();
+void test_int64_unique_list_remove_missing_returns_false();
 void test_int64_unique_list_grow_increases_slots();
 void test_int64_unique_list_reset_clears_membership();
 void test_int64_unique_list_reset_allows_reuse();

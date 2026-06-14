@@ -313,6 +313,46 @@ void test_int64_unique_list_pop_at_drains_from_front() {
   kl_int64_unique_list_destroy(&list);
 }
 
+void test_int64_unique_list_remove_by_value() {
+  KL_int64_UniqueList list = {0};
+  kl_int64_unique_list_init(&list, (KL_UniqueListConfig){ .capacity = 4 });
+  for (int i = 0; i < 6; i++) kl_int64_unique_list_push(&list, i * 10); // [0,10,20,30,40,50]
+
+  // Remove a middle value; storage compacts and index_of stays consistent.
+  KL_TEST_ASSERT(kl_int64_unique_list_remove(&list, 20) == true, "removing a present value succeeds");
+  KL_TEST_EXPECT_EQ_INT(list._list.length, 5);
+  KL_TEST_ASSERT(kl_int64_unique_list_includes(&list, 20) == false, "removed value gone");
+  KL_TEST_EXPECT_EQ_INT((int)kl_int64_unique_list_index_of(&list, 20), -1);
+
+  int expected[] = { 0, 10, 30, 40, 50 };
+  for (int i = 0; i < 5; i++) {
+    KL_TEST_EXPECT_EQ_INT((int)list._list.items[i], expected[i]);
+    KL_TEST_EXPECT_EQ_INT((int)kl_int64_unique_list_index_of(&list, expected[i]), i);
+  }
+
+  // A removed value can be pushed again.
+  KL_TEST_ASSERT(kl_int64_unique_list_push(&list, 20) == true, "removed value can be re-pushed");
+
+  kl_int64_unique_list_destroy(&list);
+}
+
+void test_int64_unique_list_remove_missing_returns_false() {
+  KL_int64_UniqueList list = {0};
+  kl_int64_unique_list_init(&list, (KL_UniqueListConfig){ .capacity = 4 });
+  kl_int64_unique_list_push(&list, 1);
+  kl_int64_unique_list_push(&list, 2);
+
+  KL_TEST_ASSERT(kl_int64_unique_list_remove(&list, 99) == false, "removing absent value returns false");
+  KL_TEST_EXPECT_EQ_INT(list._list.length, 2); // unchanged
+  // Removing from an empty list is also a safe no-op.
+  KL_int64_UniqueList empty = {0};
+  kl_int64_unique_list_init(&empty, (KL_UniqueListConfig){ .capacity = 4 });
+  KL_TEST_ASSERT(kl_int64_unique_list_remove(&empty, 0) == false, "remove on empty returns false");
+
+  kl_int64_unique_list_destroy(&list);
+  kl_int64_unique_list_destroy(&empty);
+}
+
 void test_int64_unique_list_grow_increases_slots() {
   KL_int64_UniqueList list = {0};
   kl_int64_unique_list_init(&list, (KL_UniqueListConfig){ .capacity = 4 });

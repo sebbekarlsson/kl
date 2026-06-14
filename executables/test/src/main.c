@@ -116,6 +116,8 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_int64_unique_list_pop_at_out_of_range_returns_false),
     KL_TEST_ENTRY(test_int64_unique_list_pop_at_empty_returns_false),
     KL_TEST_ENTRY(test_int64_unique_list_pop_at_drains_from_front),
+    KL_TEST_ENTRY(test_int64_unique_list_remove_by_value),
+    KL_TEST_ENTRY(test_int64_unique_list_remove_missing_returns_false),
     KL_TEST_ENTRY(test_int64_unique_list_grow_increases_slots),
     KL_TEST_ENTRY(test_int64_unique_list_reset_clears_membership),
     KL_TEST_ENTRY(test_int64_unique_list_reset_allows_reuse),

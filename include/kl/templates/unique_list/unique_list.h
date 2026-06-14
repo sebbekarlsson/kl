@@ -33,7 +33,8 @@ This file was automatically generated and must not be modified directly.
   bool kl_##NAME##_unique_list_pop_at(KL_##NAME##_UniqueList* list, int64_t idx, T* out);   \
   void kl_##NAME##_unique_list_grow(KL_##NAME##_UniqueList *list, int64_t n_slots);         \
   bool kl_##NAME##_unique_list_includes(KL_##NAME##_UniqueList* list, T item);              \
-  int64_t kl_##NAME##_unique_list_index_of(KL_##NAME##_UniqueList* list, T item);
+  int64_t kl_##NAME##_unique_list_index_of(KL_##NAME##_UniqueList* list, T item);           \
+  bool kl_##NAME##_unique_list_remove(KL_##NAME##_UniqueList* list, T item);
 
 
 
@@ -114,6 +115,12 @@ This file was automatically generated and must not be modified directly.
     assert(idx >= 0);                                                                                             \
     assert(idx < list->_list.length);                                                                             \
     return idx;                                                                                                   \
+  }                                                                                                               \
+  bool kl_##NAME##_unique_list_remove(KL_##NAME##_UniqueList* list, T item) {                                     \
+    assert(list->initialized);                                                                                    \
+    int64_t idx = kl_##NAME##_unique_list_index_of(list, item);                                                   \
+    if (idx < 0) return false;                                                                                    \
+    return kl_##NAME##_unique_list_pop_at(list, idx, 0);                                                          \
   }
 
 /* generated */
