@@ -103,7 +103,9 @@ bool kl_str_const_is_numeric(KL_StrConst str) {
 }
 
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length) {
-  if (str.value == 0 || str.length <= 0 || length <= 0 || offset < 0 || offset >= str.length) return (KL_StrConst){0};
+  if (str.value == 0 || str.length <= 0 || length <= 0 || offset >= str.length) return (KL_StrConst){0};
+
+  offset = KL_MAX(0, offset);
 
   return (KL_StrConst){
     .value = &str.value[offset],
