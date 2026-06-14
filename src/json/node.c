@@ -275,6 +275,22 @@ int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fal
   return selected->as.number_int;
 }
 
+double kl_json_node_select_float(KL_JSONNode* node, KL_StrConst path, double fallback) {
+  if (path.length <= 0 || path.value == 0) return fallback;
+  if (!is_traversable(node)) return fallback;
+
+  KL_JSONNode* selected = kl_json_node_select(node, path);
+  if (selected == 0) return fallback;
+
+  if (selected->type == KL_JSON_NODE_INT) {
+    return (double)selected->as.number_int;
+  }
+  
+  if (selected->type != KL_JSON_NODE_FLOAT) return fallback;
+
+  return selected->as.number_float;
+}
+
 
 KL_StrConst kl_json_node_select_string(KL_JSONNode* node, KL_StrConst path, KL_StrConst fallback) {
   if (path.length <= 0 || path.value == 0) return fallback;
