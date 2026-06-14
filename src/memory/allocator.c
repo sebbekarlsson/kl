@@ -179,6 +179,16 @@ void kl_allocator_reset(KL_Allocator* allocator) {
   allocator->allocations.length = 0;
 }
 
+void kl_allocator_lock(KL_Allocator* allocator) {
+  assert(allocator->initialized);
+  kl_mutex_lock(&allocator->lock);
+}
+
+void kl_allocator_unlock(KL_Allocator* allocator) {
+  assert(allocator->initialized);
+  kl_mutex_unlock(&allocator->lock);
+}
+
 static inline bool page_fits(KL_AllocatorPage* page, int64_t size) {
   if (page->bytes_written >= page->size || page->size < size) return false;
   assert(page->data != 0);

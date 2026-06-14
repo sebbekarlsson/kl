@@ -61,6 +61,10 @@ void kl_allocator_destroy_all_pages(KL_Allocator* allocator);
 
 void kl_allocator_reset(KL_Allocator* allocator);
 
+void kl_allocator_lock(KL_Allocator* allocator);
+
+void kl_allocator_unlock(KL_Allocator* allocator);
+
 uint8_t* kl_allocator_malloc(KL_Allocator* allocator, int64_t size);
 
 uint8_t* kl_allocator_malloc_aligned(KL_Allocator* allocator, int64_t size, size_t alignment);
