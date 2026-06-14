@@ -275,6 +275,22 @@ bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content) {
   return true;
 }
 
+KL_StrConst kl_str_buffer_set(KL_StrBuffer* buff, KL_StrConst value) {
+  if (value.length <= 0 || value.value == 0) {
+    kl_str_buffer_clear(buff);
+    return (KL_StrConst){0};
+  }
+
+  kl_str_buffer_clear(buff);
+  
+  if (!kl_str_buffer_append(buff, value)) return (KL_StrConst){0};
+
+  return (KL_StrConst){
+    .value = buff->data,
+    .length = buff->length
+  };
+}
+
 bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count) {
   if (buff->data == 0 || buff->capacity <= 0 || c == 0 || count <= 0) return false;
   for (int64_t i = 0; i < count; i++) {
