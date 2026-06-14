@@ -44,6 +44,8 @@ KL_StrConst kl_str_const_remove_prefix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_remove_numeric_prefix(KL_StrConst str);
 
+KL_StrConst kl_str_const_remove_numeric_suffix(KL_StrConst str);
+
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator);

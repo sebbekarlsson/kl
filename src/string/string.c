@@ -142,6 +142,23 @@ KL_StrConst kl_str_const_remove_numeric_prefix(KL_StrConst str) {
   return kl_str_const_slice(str, scanner.i - 1, str.length - (scanner.i - 1));
 }
 
+KL_StrConst kl_str_const_remove_numeric_suffix(KL_StrConst str) {
+  if (str.value == 0 || str.length <= 0) return str;
+
+  int64_t i = str.length - 1;
+  while (i >= 0 && isdigit(str.value[i])) {
+    i--;
+    if (i >= 0 && str.value[i] == '.') {
+      i--;
+    }
+  }
+
+  if (i >= str.length - 1) return str;
+  if (i < 0) return (KL_StrConst){0};
+
+  return kl_str_const_slice(str, 0, i + 1);
+}
+
 KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub) {
   if (str.value == 0 || str.length <= 0) return str;
   if (sub.value == 0 || sub.length <= 0) return str;

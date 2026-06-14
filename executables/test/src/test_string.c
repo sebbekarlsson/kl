@@ -50,6 +50,16 @@ void test_str_const_remove_numeric_prefix(KL_TestFunctionContext* ctx) {
 }
 
 
+void test_str_const_remove_numeric_suffix(KL_TestFunctionContext* ctx) {
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello04")), KL_STR_CONST_LIT("hello")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello0.4")), KL_STR_CONST_LIT("hello")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello6")), KL_STR_CONST_LIT("hello")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello3.356")), KL_STR_CONST_LIT("hello")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello.wav")), KL_STR_CONST_LIT("hello.wav")));
+  KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_str_const_remove_numeric_suffix(KL_STR_CONST_LIT("hello")), KL_STR_CONST_LIT("hello")));
+}
+
+
 void test_str_const_replace(KL_TestFunctionContext* ctx) {
   KL_Allocator allocator = {0};
   kl_allocator_init(&allocator, (KL_AllocatorConfig){ .capacity = 1024 });
