@@ -260,19 +260,34 @@ KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path) {
 }
 
 int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fallback) {
-  if (path.length <= 0 || path.value == 0) return -1;
-  if (!is_traversable(node)) return -1;
+  if (path.length <= 0 || path.value == 0) return fallback;
+  if (!is_traversable(node)) return fallback;
 
   KL_JSONNode* selected = kl_json_node_select(node, path);
-  if (selected == 0) return -1;
+  if (selected == 0) return fallback;
 
   if (selected->type == KL_JSON_NODE_FLOAT) {
     return (int64_t)selected->as.number_float;
   }
   
-  if (selected->type != KL_JSON_NODE_INT) return -1;
+  if (selected->type != KL_JSON_NODE_INT) return fallback;
 
   return selected->as.number_int;
+}
+
+
+KL_StrConst kl_json_node_select_string(KL_JSONNode* node, KL_StrConst path, KL_StrConst fallback) {
+  if (path.length <= 0 || path.value == 0) return fallback;
+  if (!is_traversable(node)) return fallback;
+
+  KL_JSONNode* selected = kl_json_node_select(node, path);
+  if (selected == 0) return fallback;
+
+  if (selected->type != KL_JSON_NODE_STRING) {
+    return fallback; 
+  }
+  
+  return selected->as.string;
 }
 
 KL_json_node_ptr_List* kl_json_node_select_array(KL_JSONNode* node, KL_StrConst path) {
