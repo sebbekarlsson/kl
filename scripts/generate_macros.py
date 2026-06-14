@@ -91,7 +91,7 @@ def generate(before_head: str, header_path: str, before_impl: str, impl_path: st
         print(f'Wrote to: {outpath}')
 
 
-def generate_type(includes: list[str], template_name: str, typename: str, name: str):
+def generate_type(includes: list[str], template_name: str, typename: str, name: str, extra_impl: list[str] | None = None):
     nup = name.upper().replace(r'_t$', '')
     tup = template_name.upper()
     output_head = '\n'.join([
@@ -102,8 +102,13 @@ def generate_type(includes: list[str], template_name: str, typename: str, name: 
        f'\nKL_DEFINE_{tup}({name}, {typename})\n',
        '#endif'
     ])
+    # extra_impl lets a template instantiate the helper containers it composes
+    # (e.g. unique_list embeds a `<name>__u` list whose KL_IMPL_LIST must be
+    # emitted alongside KL_IMPL_<template>). Lines may reference {name}/{typename}.
+    extra_impl_lines = [line.format(name=name, typename=typename) for line in (extra_impl or [])]
     output_impl = '\n'.join([
-        f'#include <{NAME}/templates/{template_name}/{name}_{template_name}.h>', 
+        f'#include <{NAME}/templates/{template_name}/{name}_{template_name}.h>',
+        *extra_impl_lines,
         f'KL_IMPL_{tup}({name}, {typename})',
     ])
     headpath = f'./include/{NAME}/templates/{template_name}/{name}_{template_name}.h'
@@ -174,6 +179,22 @@ if __name__ == '__main__':
         template_name='list',
         typename=f'{PREFIX}StrConst',
         name='str_const'
+    )
+
+    # unique_list
+    generate(
+        before_head=f'#define {PREFIX}DEFINE_UNIQUE_LIST(NAME, T)\n',
+        header_path=f'./include/{NAME}/templates/unique_list/dummy.h',
+        before_impl=f'#define {PREFIX}IMPL_UNIQUE_LIST(NAME, T)\n',
+        impl_path='./src/templates/unique_list/dummy.c',
+        outpath=f'./include/{NAME}/templates/unique_list/unique_list.h'
+    )
+    generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='unique_list',
+        typename='int64_t',
+        name='int64',
+        extra_impl=['KL_IMPL_LIST({name}__u, {typename})'],
     )
 
     # queue

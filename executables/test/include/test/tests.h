@@ -23,6 +23,7 @@
 #include <kl/memory/allocator.h>
 #include <kl/templates/list/int64_list.h>
 #include <kl/templates/list/blob_ptr_list.h>
+#include <kl/templates/unique_list/int64_unique_list.h>
 #include <kl/templates/hashmap/int64_hashmap.h>
 #include <kl/templates/sparse_set/binary_sparse_set.h>
 #include <kl/templates/sparse_set/dummy.h>
@@ -136,6 +137,34 @@ void test_int64_list_push_pop_interleaved();
 void test_int64_list_handles_negative_and_extreme_values();
 void test_int64_list_stress_many_elements();
 void test_int64_list_pop_at_drains_from_front();
+
+/* ===================== int64_unique_list (test_unique_list.c) ===================== */
+void test_int64_unique_list_init_destroy();
+void test_int64_unique_list_double_init_is_noop();
+void test_int64_unique_list_push_basic();
+void test_int64_unique_list_push_many_preserves_order();
+void test_int64_unique_list_push_duplicate_rejected();
+void test_int64_unique_list_push_duplicates_interleaved();
+void test_int64_unique_list_includes();
+void test_int64_unique_list_includes_empty();
+void test_int64_unique_list_index_of();
+void test_int64_unique_list_index_of_missing_returns_negative();
+void test_int64_unique_list_pop_basic();
+void test_int64_unique_list_pop_lifo_order();
+void test_int64_unique_list_pop_empty_returns_false();
+void test_int64_unique_list_pop_then_repush();
+void test_int64_unique_list_pop_at_middle_reindexes();
+void test_int64_unique_list_pop_at_first_reindexes();
+void test_int64_unique_list_pop_at_last_keeps_others();
+void test_int64_unique_list_pop_at_out_of_range_returns_false();
+void test_int64_unique_list_pop_at_empty_returns_false();
+void test_int64_unique_list_pop_at_drains_from_front();
+void test_int64_unique_list_grow_increases_slots();
+void test_int64_unique_list_reset_clears_membership();
+void test_int64_unique_list_reset_allows_reuse();
+void test_int64_unique_list_handles_negative_and_extreme_values();
+void test_int64_unique_list_with_arena_allocator();
+void test_int64_unique_list_stress_dedup();
 
 /* ===================== int64_hashmap (test_hashmap.c) ===================== */
 void test_int64_hashmap_init_destroy();
