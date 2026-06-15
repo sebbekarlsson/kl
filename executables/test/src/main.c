@@ -25,6 +25,7 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_json_tokenizer),
     KL_TEST_ENTRY(test_json_parser),
     KL_TEST_ENTRY(test_json_node_utils),
+    KL_TEST_ENTRY(test_json_string_escapes),
 
     KL_TEST_ENTRY(test_allocator_init_destroy),
     KL_TEST_ENTRY(test_allocator_double_init_is_noop),

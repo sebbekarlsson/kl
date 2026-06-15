@@ -260,6 +260,13 @@ if __name__ == '__main__':
         typename='int64_t',
         name='i64'
     )
+    generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='sparse_set',
+        typename='uint64_t',
+        name='ui64'
+    )
+    
 
 
     # ringbuffer 

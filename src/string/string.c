@@ -267,12 +267,17 @@ bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c) {
 
 bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content) {
   if (content.length <= 0 || content.value == 0) return false;
-  
-  for (int64_t i = 0; i < content.length; i++) {
-    if (!kl_str_buffer_append_char(buff, content.value[i])) {
-      return false;
-    }
-  }
+
+  /* Reserve room for the whole span up front (+1 for the NUL terminator) and
+     copy it in one shot rather than paying per-char fit/append overhead.
+     fit() is best-effort: it no-ops without an allocator, so (like
+     append_char) we rely on the available capacity check below. */
+  kl_str_buffer_fit(buff, content.length + 1);
+  if (kl_str_buffer_avail(buff) < content.length) return false;
+
+  memcpy(&buff->data[buff->length], content.value, content.length);
+  buff->length += content.length;
+  buff->data[buff->length] = '\0';
 
   return true;
 }
@@ -303,6 +308,11 @@ bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count) {
 
 void kl_str_buffer_clear(KL_StrBuffer* buff) {
   if (buff->data == 0 || buff->capacity <= 0) return;
-  memset(&buff->data[0], 0, buff->capacity);
+  /* Only clear the region that was actually written since the last clear,
+     not the whole capacity. The buffer can be backed by a multi-megabyte
+     allocation (e.g. the JSON tokenizer sizes it to the input length), so
+     memset-ing the full capacity on every clear is catastrophically slow. */
+  if (buff->length > 0) memset(&buff->data[0], 0, buff->length);
+  buff->data[0] = '\0';
   buff->length = 0;
 }

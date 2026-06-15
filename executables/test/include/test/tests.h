@@ -66,6 +66,7 @@ void test_jaro_winkler_single_char();
 void test_json_tokenizer(KL_TestFunctionContext* ctx);
 void test_json_parser(KL_TestFunctionContext* ctx);
 void test_json_node_utils(KL_TestFunctionContext* ctx);
+void test_json_string_escapes(KL_TestFunctionContext* ctx);
 
 /* ===================== allocator (test_allocator.c) ===================== */
 void test_allocator_init_destroy();

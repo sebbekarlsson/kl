@@ -382,3 +382,50 @@ void test_json_node_utils(KL_TestFunctionContext* ctx) {
   }
   KL_TEST_IT_END(ctx);
 }
+
+void test_json_string_escapes(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "decodes standard escape sequences");
+  {
+    KL_JSONParser parser = {0};
+    kl_json_parser_init(&parser);
+    KL_JSONNode* node = kl_json_parser_parse(&parser, KL_STR_CONST_LIT(
+      "{ \"a\": \"x\\\"y\", \"b\": \"x\\\\y\", \"c\": \"x\\/y\", \"d\": \"x\\ny\", \"e\": \"\\t\\r\\b\\f\" }"));
+    KL_TEST_EXPECT_EXPR(node != 0 && node->type == KL_JSON_NODE_OBJECT);
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("a"))->as.string, KL_STR_CONST_LIT("x\"y")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("b"))->as.string, KL_STR_CONST_LIT("x\\y")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("c"))->as.string, KL_STR_CONST_LIT("x/y")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("d"))->as.string, KL_STR_CONST_LIT("x\ny")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("e"))->as.string, KL_STR_CONST_LIT("\t\r\b\f")));
+    kl_json_parser_destroy(&parser);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "an escaped quote does not terminate the string early");
+  {
+    KL_JSONParser parser = {0};
+    kl_json_parser_init(&parser);
+    // the escaped quote in "a" must not end the object; sibling "b" must parse
+    KL_JSONNode* node = kl_json_parser_parse(&parser, KL_STR_CONST_LIT("{ \"a\": \"x\\\"y\", \"b\": 42 }"));
+    KL_TEST_EXPECT_EXPR(node != 0 && node->type == KL_JSON_NODE_OBJECT);
+    KL_JSONNode* b = kl_json_node_object_get(node, KL_STR_CONST_LIT("b"));
+    KL_TEST_EXPECT_EXPR(b != 0 && b->type == KL_JSON_NODE_INT);
+    KL_TEST_EXPECT_EQ_INT(b->as.number_int, 42);
+    kl_json_parser_destroy(&parser);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "decodes \\u escapes as UTF-8 including surrogate pairs");
+  {
+    KL_JSONParser parser = {0};
+    kl_json_parser_init(&parser);
+    KL_JSONNode* node = kl_json_parser_parse(&parser, KL_STR_CONST_LIT(
+      "{ \"ascii\": \"A\\u0042C\", \"two\": \"\\u00e9\", \"three\": \"\\u20ac\", \"emoji\": \"\\ud83d\\ude00\" }"));
+    KL_TEST_EXPECT_EXPR(node != 0 && node->type == KL_JSON_NODE_OBJECT);
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("ascii"))->as.string, KL_STR_CONST_LIT("ABC")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("two"))->as.string, KL_STR_CONST_LIT("\xc3\xa9")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("three"))->as.string, KL_STR_CONST_LIT("\xe2\x82\xac")));
+    KL_TEST_EXPECT_EXPR(kl_str_const_eq(kl_json_node_object_get(node, KL_STR_CONST_LIT("emoji"))->as.string, KL_STR_CONST_LIT("\xf0\x9f\x98\x80")));
+    kl_json_parser_destroy(&parser);
+  }
+  KL_TEST_IT_END(ctx);
+}

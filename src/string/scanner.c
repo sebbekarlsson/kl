@@ -111,8 +111,28 @@ bool kl_str_scanner_advance(KL_StrScanner* scanner, int64_t steps) {
   if (steps <= 0) return false;
   if (!kl_str_scanner_has_more(scanner)) return false;
 
-  for (int64_t i = 0; i < steps && kl_str_scanner_has_more(scanner); i++) {
-    scanner->c = scanner->str.value[scanner->i++];
+  /* The scalar form reads value[i++] up to `steps` times, stopping early if it
+     reads a NUL (current char becomes 0) or i would pass the end. Reproduce
+     that exact result in one shot: clamp to the terminator slot, then let a
+     single (SIMD) memchr honor any embedded NUL in the skipped span. This turns
+     a per-char loop (with a has_more() call each iteration) into O(1) amortized. */
+  const char* v = scanner->str.value;
+  int64_t len = scanner->str.length;
+  int64_t i = scanner->i;
+
+  int64_t max_reads = (len + 1) - i;   // keeps i <= len + 1, matching the loop
+  if (max_reads < 0) max_reads = 0;
+  int64_t n = steps < max_reads ? steps : max_reads;
+
+  if (n > 0) {
+    const void* nul = memchr(&v[i], 0, (size_t)n);
+    if (nul != 0) {
+      scanner->i = (int64_t)((const char*)nul - v) + 1;
+      scanner->c = 0;
+    } else {
+      scanner->i = i + n;
+      scanner->c = v[scanner->i - 1];
+    }
   }
 
   return kl_str_scanner_has_more(scanner);
