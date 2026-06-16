@@ -72,6 +72,11 @@ int64_t kl_str_buffer_avail(const KL_StrBuffer* buff);
 bool kl_str_buffer_append_char(KL_StrBuffer* buff, char c);
 bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content);
 
+// Appends a printf-style formatted string to the buffer. Returns true on
+// success.
+bool kl_str_buffer_append_fmt(KL_StrBuffer* buff, const char* fmt, ...)
+  __attribute__((format(printf, 2, 3)));
+
 KL_StrConst kl_str_buffer_set(KL_StrBuffer* buff, KL_StrConst value);
 
 bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count);

@@ -177,6 +177,48 @@ void test_jaro_winkler_single_char() {
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("A"), KL_STR_CONST_LIT("B"), 0.1f), 0.0f, 0.0001f);
 }
 
+void test_str_buffer_append_fmt(KL_TestFunctionContext* ctx) {
+  KL_Allocator allocator = {0};
+  kl_allocator_init(&allocator, (KL_AllocatorConfig){ .capacity = 1024 });
+
+  KL_StrBuffer buffer = {0};
+  buffer.allocator = &allocator;
+
+  KL_TEST_IT(ctx, "formats and appends");
+  {
+    KL_TEST_EXPECT_EXPR(kl_str_buffer_append_fmt(&buffer, "%d-%s", 42, "hi"));
+    KL_TEST_EXPECT_EQ_STR(((KL_StrConst){ .value = buffer.data, .length = buffer.length }), KL_STR_CONST_LIT("42-hi"));
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "appends onto existing content");
+  {
+    KL_TEST_EXPECT_EXPR(kl_str_buffer_append_fmt(&buffer, " %.2f", 1.5));
+    KL_TEST_EXPECT_EQ_STR(((KL_StrConst){ .value = buffer.data, .length = buffer.length }), KL_STR_CONST_LIT("42-hi 1.50"));
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "grows past the initial capacity");
+  {
+    kl_str_buffer_clear(&buffer);
+    // %500s right-pads to 500 chars, forcing growth beyond the bump size.
+    KL_TEST_EXPECT_EXPR(kl_str_buffer_append_fmt(&buffer, "%500s", ""));
+    KL_TEST_EXPECT_EQ_INT(buffer.length, 500);
+    KL_TEST_EXPECT_EQ_CHAR(buffer.data[buffer.length], '\0');
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "empty result appends nothing");
+  {
+    kl_str_buffer_clear(&buffer);
+    KL_TEST_EXPECT_EXPR(kl_str_buffer_append_fmt(&buffer, "%s", ""));
+    KL_TEST_EXPECT_EQ_INT(buffer.length, 0);
+  }
+  KL_TEST_IT_END(ctx);
+
+  kl_allocator_destroy(&allocator);
+}
+
 void test_str_scanner(KL_TestFunctionContext* ctx) {
 
   KL_TEST_IT(ctx, "advances correctly");

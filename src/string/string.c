@@ -3,6 +3,8 @@
 #include <kl/macros.h>
 #include <ctype.h>
 #include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 bool kl_str_const_eq(KL_StrConst a, KL_StrConst b) {
   if (a.length != b.length) return false;
@@ -279,6 +281,50 @@ bool kl_str_buffer_append(KL_StrBuffer* buff, KL_StrConst content) {
   buff->length += content.length;
   buff->data[buff->length] = '\0';
 
+  return true;
+}
+
+bool kl_str_buffer_append_fmt(KL_StrBuffer* buff, const char* fmt, ...) {
+  if (fmt == 0) return false;
+
+  /* First pass: measure the formatted length without writing anything.
+     vsnprintf returns the number of chars (excluding the NUL) that *would*
+     have been written. We copy the va_list because the first pass consumes
+     it and we need a fresh one for the real write. */
+  va_list args;
+  va_start(args, fmt);
+
+  va_list measure;
+  va_copy(measure, args);
+  int needed = vsnprintf(0, 0, fmt, measure);
+  va_end(measure);
+
+  if (needed < 0) {
+    va_end(args);
+    return false;
+  }
+
+  if (needed == 0) {
+    va_end(args);
+    return true; // nothing to append
+  }
+
+  /* Reserve room for the content plus the NUL terminator. fit() is
+     best-effort (no-ops without an allocator), so we still guard on avail. */
+  kl_str_buffer_fit(buff, needed + 1);
+  if (kl_str_buffer_avail(buff) < needed) {
+    va_end(args);
+    return false;
+  }
+
+  /* capacity excludes the terminator slot, so data[capacity] is always a
+     valid byte: avail + 1 bytes are writable starting at data[length]. */
+  int written = vsnprintf(&buff->data[buff->length], needed + 1, fmt, args);
+  va_end(args);
+
+  if (written < 0) return false;
+
+  buff->length += written;
   return true;
 }
 
