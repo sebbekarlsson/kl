@@ -309,8 +309,10 @@ bool kl_str_buffer_append_fmt(KL_StrBuffer* buff, const char* fmt, ...) {
     return true; // nothing to append
   }
 
-  /* Reserve room for the content plus the NUL terminator. fit() is
-     best-effort (no-ops without an allocator), so we still guard on avail. */
+  /* Reserve room for the content plus the NUL terminator. With an allocator
+     fit() always grows to satisfy the request, so the guard below can only
+     trip for an allocator-less (e.g. stack) buffer that has run out of room;
+     there it protects against an overflow instead of growing. */
   kl_str_buffer_fit(buff, needed + 1);
   if (kl_str_buffer_avail(buff) < needed) {
     va_end(args);
