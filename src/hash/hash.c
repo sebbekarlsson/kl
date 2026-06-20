@@ -1,5 +1,9 @@
 #include <kl/hash/hash.h>
 #include <kl/common/number.h>
+#include <kl/macros.h>
+#include <string.h>
+#include <stddef.h>
+#include <ctype.h>
 
 uint32_t kl_hash_uint32(uint32_t x) {
   x ^= x >> 16;
@@ -82,4 +86,102 @@ int32_t kl_hash_uint32_next_int32(uint32_t* seed, int32_t min, int32_t max) {
     return (int32_t)r;
   }
   return (int32_t)((uint32_t)min + (r % span));
+}
+
+bool kl_hash_uint32_next_bool(uint32_t* seed) {
+  return kl_hash_uint32_next_f32(seed, 0.0f, 1.0f) < 0.5f;
+}
+
+int32_t kl_hash_uint32_next_index(uint32_t* seed, int32_t array_length) {
+  if (array_length <= 0) return 0;
+  return kl_hash_uint32_next_int32(seed, 0, array_length-1) % array_length;
+}
+
+char kl_hash_uint32_next_char_alpha(uint32_t* seed) {
+  return (char)kl_hash_uint32_next_int32(seed, 97, 122);
+}
+
+char kl_hash_uint32_next_char_numeric(uint32_t* seed) {
+  return (char)kl_hash_uint32_next_int32(seed, 48, 57);
+}
+
+char kl_hash_uint32_next_char_hex_alpha(uint32_t* seed) {
+  return (char)kl_hash_uint32_next_int32(seed, 'a', 'f');
+}
+
+char kl_hash_uint32_next_char_hex_alpha_numeric(uint32_t* seed) {
+  return kl_hash_uint32_next_bool(seed) ? kl_hash_uint32_next_char_hex_alpha(seed) : kl_hash_uint32_next_char_numeric(seed);
+}
+
+char kl_hash_uint32_next_char_hex(uint32_t* seed) {
+  return "0123456789abcdef"[kl_hash_uint32_next_index(seed, 16)];
+}
+
+static const char KL_VOWELS[] = {
+  'a', 'e', 'i', 'o', 'u', 'y'
+};
+static const size_t KL_VOWELS_LEN = KL_ARRAY_LEN(KL_VOWELS);
+
+
+static const char KL_CONSONANTS[] = {
+  'b', 'c', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'n', 'p', 'r', 'q', 's', 't', 'v', 'w', 'x', 'z'
+};
+static const size_t KL_CONSONANTS_LEN = KL_ARRAY_LEN(KL_CONSONANTS);
+
+char kl_hash_uint32_next_char_vowel(uint32_t* seed) {
+  return KL_VOWELS[kl_hash_uint32_next_index(seed, (int32_t)KL_VOWELS_LEN)];
+}
+
+char kl_hash_uint32_next_char_consonant(uint32_t* seed) {
+  return KL_CONSONANTS[kl_hash_uint32_next_index(seed, (int32_t)KL_CONSONANTS_LEN)];
+}
+
+bool kl_hash_uint32_next_string_alpha(uint32_t* seed, int32_t length, KL_StrBuffer* out) {
+  for (int32_t i = 0; i < length; i++) {
+    if (!kl_str_buffer_append_char(out, kl_hash_uint32_next_char_alpha(seed))) {
+      break;
+    }
+  }
+  return out->length > 0 && out->data != 0;
+}
+
+bool kl_hash_uint32_next_string_name(uint32_t* seed, int32_t length, KL_StrBuffer* out) {
+  for (int32_t i = 0; i < length; i++) {
+    char c = ((i % 2) == 0) ? kl_hash_uint32_next_char_consonant(seed) : kl_hash_uint32_next_char_vowel(seed);
+    if (i <= 0) c = toupper(c);
+    if (!kl_str_buffer_append_char(out, c)) {
+      break;
+    }
+  }
+  return out->length > 0 && out->data != 0;
+}
+
+bool kl_hash_uint32_next_string_pattern(uint32_t* seed, KL_StrConst pattern, KL_StrBuffer* out) {
+
+  static const KL_StrConst ys = KL_STR_CONST_LIT("89ab");
+  
+  for (int64_t i = 0; i < pattern.length; i++) {
+    char f = pattern.value[i];
+
+
+    if (f >= '0' && f <= '9') {
+      kl_str_buffer_append_char(out, f);
+      continue;
+    }
+
+    switch (f) {
+      case 'x': kl_str_buffer_append_char(out, kl_hash_uint32_next_char_hex(seed)); break;
+      case 'y': kl_str_buffer_append_char(out, ys.value[kl_hash_uint32_next_index(seed, ys.length)]); break;
+      default: kl_str_buffer_append_char(out, f); break;
+    }
+  }
+
+  return out->length > 0 && out->data != 0;
+}
+
+
+static const KL_StrConst KL_UUIDV4_FORMAT = KL_STR_CONST_LIT("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx");
+
+bool kl_hash_uint32_next_string_uuidv4(uint32_t* seed, KL_StrBuffer* out) {
+  return kl_hash_uint32_next_string_pattern(seed, KL_UUIDV4_FORMAT, out);
 }

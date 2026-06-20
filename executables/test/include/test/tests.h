@@ -421,4 +421,10 @@ void test_noise_perlin_2d_fbm_range();
 void test_noise_simplex_2d_fbm_single_octave_equals_base();
 void test_noise_simplex_2d_fbm_range();
 
+/* ===================== hash (test_hash.c) ===================== */
+void test_hash_uuidv4_format();
+void test_hash_uuidv4_deterministic();
+void test_hash_uuidv4_distinct();
+void test_hash_uuidv4_hex_uses_digits();
+
 #endif

@@ -366,6 +366,11 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_noise_perlin_2d_fbm_range),
     KL_TEST_ENTRY(test_noise_simplex_2d_fbm_single_octave_equals_base),
     KL_TEST_ENTRY(test_noise_simplex_2d_fbm_range),
+
+    KL_TEST_ENTRY(test_hash_uuidv4_format),
+    KL_TEST_ENTRY(test_hash_uuidv4_deterministic),
+    KL_TEST_ENTRY(test_hash_uuidv4_distinct),
+    KL_TEST_ENTRY(test_hash_uuidv4_hex_uses_digits),
   };
 
   int64_t n_tests = KL_ARRAY_LEN(tests);

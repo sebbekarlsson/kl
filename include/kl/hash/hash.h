@@ -2,7 +2,9 @@
 #define KL_HASH_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
+#include <kl/string/string.h>
 
 uint32_t kl_hash_uint32(uint32_t x);
 
@@ -31,5 +33,31 @@ double kl_hash_f64(double x);
 float kl_hash_uint32_next_f32(uint32_t* seed, float min, float max);
 
 int32_t kl_hash_uint32_next_int32(uint32_t* seed, int32_t min, int32_t max);
+
+bool kl_hash_uint32_next_bool(uint32_t* seed);
+
+int32_t kl_hash_uint32_next_index(uint32_t* seed, int32_t array_length);
+
+char kl_hash_uint32_next_char_alpha(uint32_t* seed);
+
+char kl_hash_uint32_next_char_numeric(uint32_t* seed);
+
+char kl_hash_uint32_next_char_hex_alpha(uint32_t* seed);
+
+char kl_hash_uint32_next_char_hex_alpha_numeric(uint32_t* seed);
+
+char kl_hash_uint32_next_char_hex(uint32_t* seed);
+
+char kl_hash_uint32_next_char_vowel(uint32_t* seed);
+
+char kl_hash_uint32_next_char_consonant(uint32_t* seed);
+
+bool kl_hash_uint32_next_string_alpha(uint32_t* seed, int32_t length, KL_StrBuffer* out);
+
+bool kl_hash_uint32_next_string_name(uint32_t* seed, int32_t length, KL_StrBuffer* out);
+
+bool kl_hash_uint32_next_string_pattern(uint32_t* seed, KL_StrConst pattern, KL_StrBuffer* out);
+
+bool kl_hash_uint32_next_string_uuidv4(uint32_t* seed, KL_StrBuffer* out);
 
 #endif
