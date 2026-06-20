@@ -159,6 +159,9 @@ int main(int argc, char* argv[]) {
     KL_TEST_ENTRY(test_int64_hashmap_deserialize_rejects_bad_magic),
     KL_TEST_ENTRY(test_int64_hashmap_zero_value_is_distinguishable),
     KL_TEST_ENTRY(test_int64_hashmap_negative_and_extreme_keys),
+    KL_TEST_ENTRY(test_int64_hashmap_custom_hash_is_invoked),
+    KL_TEST_ENTRY(test_int64_hashmap_custom_hash_constant_forces_collisions),
+    KL_TEST_ENTRY(test_int64_hashmap_custom_hash_overrides_builtin),
 
     KL_TEST_ENTRY(test_binary_sparseset_init_destroy),
     KL_TEST_ENTRY(test_binary_sparseset_double_init_is_noop),

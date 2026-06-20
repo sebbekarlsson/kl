@@ -594,6 +594,112 @@ void test_int64_hashmap_zero_value_is_distinguishable() {
   kl_int64_hashmap_destroy(&map);
 }
 
+/* Custom hash fn that always returns 0, forcing every key into the same home
+   bucket regardless of its bytes. Exercises the override + collision chain. */
+static uint64_t kl_test_constant_hash(KL_Blob key, void* user_ptr) {
+  (void)key;
+  (void)user_ptr;
+  return 0;
+}
+
+/* Custom hash fn that bumps an int64 counter through user_ptr each call, so a
+   test can prove the map actually routed hashing through the config fn. */
+static uint64_t kl_test_counting_hash(KL_Blob key, void* user_ptr) {
+  int64_t* calls = (int64_t*)user_ptr;
+  if (calls != 0) *calls += 1;
+  /* FNV-1a so distinct keys still spread across buckets. */
+  uint64_t h = 14695981039346656037ULL;
+  for (int64_t i = 0; i < key.size; i++) {
+    h ^= (uint8_t)key.value[i];
+    h *= 1099511628211ULL;
+  }
+  return h;
+}
+
+void test_int64_hashmap_custom_hash_is_invoked() {
+  // The config hash fn must be called for every hashing operation, and the
+  // user_ptr must be threaded through to it unchanged.
+  int64_t calls = 0;
+  KL_int64_Hashmap map = {0};
+  KL_HashmapConfig cfg = kl_test_int64_hashmap_default_cfg();
+  cfg.hash.fn = kl_test_counting_hash;
+  cfg.hash.user_ptr = &calls;
+  kl_int64_hashmap_init(&map, cfg);
+
+  int64_t k = 7;
+  KL_HashmapHash h = kl_int64_hashmap_get_hash(&map, KL_BLOB_AUTO(k));
+  KL_TEST_ASSERT(calls == 1, "custom hash fn invoked once for get_hash");
+  // Index must still be folded into the table via the capacity mask.
+  KL_TEST_ASSERT(h.index >= 0 && h.index < map.capacity_pow2, "index in [0, pow2)");
+  KL_TEST_ASSERT((uint64_t)h.index == (h.hash & map.capacity_mask), "index is hash & mask");
+
+  calls = 0;
+  kl_int64_hashmap_set(&map, KL_BLOB_AUTO(k), 99);
+  KL_TEST_ASSERT(calls >= 1, "custom hash fn invoked on set");
+
+  calls = 0;
+  int64_t out = 0;
+  KL_TEST_EXPECT_EQ_INT(kl_int64_hashmap_get(&map, KL_BLOB_AUTO(k), &out), 1);
+  KL_TEST_EXPECT_EQ_INT((int)out, 99);
+  KL_TEST_ASSERT(calls >= 1, "custom hash fn invoked on get");
+
+  kl_int64_hashmap_destroy(&map);
+}
+
+void test_int64_hashmap_custom_hash_constant_forces_collisions() {
+  // A constant hash sends every key to slot 0, yet the map must still keep all
+  // keys distinct (compare falls back to the raw key bytes, not the hash).
+  KL_int64_Hashmap map = {0};
+  KL_HashmapConfig cfg = kl_test_int64_hashmap_default_cfg();
+  cfg.hash.fn = kl_test_constant_hash;
+  kl_int64_hashmap_init(&map, cfg);
+
+  const int N = 32;
+  for (int i = 0; i < N; i++) {
+    int64_t k = i + 1;
+    KL_TEST_ASSERT(kl_int64_hashmap_set(&map, KL_BLOB_AUTO(k), (int64_t)(k * 10)) >= 0,
+                   "set under constant hash");
+  }
+  // Every key shares one home bucket, so all but the first insert collide.
+  KL_TEST_EXPECT_EQ_INT((int)map.n_collisions, N - 1);
+
+  for (int i = 0; i < N; i++) {
+    int64_t k = i + 1;
+    int64_t out = 0;
+    KL_TEST_EXPECT_EQ_INT(kl_int64_hashmap_get(&map, KL_BLOB_AUTO(k), &out), 1);
+    KL_TEST_EXPECT_EQ_INT((int)out, (int)(k * 10));
+  }
+  // A never-inserted key still misses despite hashing to the same bucket.
+  int64_t missing = N + 100;
+  KL_TEST_ASSERT(!kl_int64_hashmap_has(&map, KL_BLOB_AUTO(missing)), "absent key still misses");
+
+  kl_int64_hashmap_destroy(&map);
+}
+
+void test_int64_hashmap_custom_hash_overrides_builtin() {
+  // The same key under a custom hash must land where the custom hash dictates,
+  // not where the built-in murmur path would have put it.
+  int64_t k = 123456;
+
+  KL_int64_Hashmap builtin = {0};
+  kl_int64_hashmap_init(&builtin, kl_test_int64_hashmap_default_cfg());
+  KL_HashmapHash hb = kl_int64_hashmap_get_hash(&builtin, KL_BLOB_AUTO(k));
+
+  KL_int64_Hashmap custom = {0};
+  KL_HashmapConfig cfg = kl_test_int64_hashmap_default_cfg();
+  cfg.hash.fn = kl_test_constant_hash;
+  kl_int64_hashmap_init(&custom, cfg);
+  KL_HashmapHash hc = kl_int64_hashmap_get_hash(&custom, KL_BLOB_AUTO(k));
+
+  // Constant hash yields hash 0; the built-in murmur path is overwhelmingly
+  // unlikely to also produce 0 for this key.
+  KL_TEST_ASSERT(hc.hash == 0, "custom constant hash returns 0");
+  KL_TEST_ASSERT(hb.hash != hc.hash, "custom hash overrides built-in hashing");
+
+  kl_int64_hashmap_destroy(&builtin);
+  kl_int64_hashmap_destroy(&custom);
+}
+
 void test_int64_hashmap_negative_and_extreme_keys() {
   KL_int64_Hashmap map = {0};
   kl_int64_hashmap_init(&map, kl_test_int64_hashmap_default_cfg());

@@ -203,6 +203,9 @@ void test_int64_hashmap_serialize_deserialize_round_trip();
 void test_int64_hashmap_deserialize_rejects_bad_magic();
 void test_int64_hashmap_zero_value_is_distinguishable();
 void test_int64_hashmap_negative_and_extreme_keys();
+void test_int64_hashmap_custom_hash_is_invoked();
+void test_int64_hashmap_custom_hash_constant_forces_collisions();
+void test_int64_hashmap_custom_hash_overrides_builtin();
 
 /* ===================== binary_sparse_set (test_sparse_set.c) ===================== */
 void test_binary_sparseset_init_destroy();

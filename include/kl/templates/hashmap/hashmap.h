@@ -182,6 +182,14 @@ This file was automatically generated and must not be modified directly.
   KL_HashmapHash kl_##NAME##_hashmap_get_hash(KL_##NAME##_Hashmap *map, KL_Blob key) {                                                                                                                  \
     KL_HashmapHash hash = {0};                                                                                                                                                                          \
     uint64_t mask = map->capacity_mask;                                                                                                                                                                 \
+    /* A caller-supplied hash function overrides both built-in paths; we still                                                                                                                          \
+       fold its result into the table index with the same power-of-two mask. */                                                                                                                         \
+    if (map->config.hash.fn != 0) {                                                                                                                                                                     \
+      uint64_t h = map->config.hash.fn(key, map->config.hash.user_ptr);                                                                                                                                 \
+      hash.hash = h;                                                                                                                                                                                    \
+      hash.index = (int64_t)(h & mask);                                                                                                                                                                 \
+      return hash;                                                                                                                                                                                      \
+    }                                                                                                                                                                                                   \
     if (key.size <= (int64_t)sizeof(int64_t)) {                                                                                                                                                         \
       uint64_t h = 0;                                                                                                                                                                                   \
       memcpy(&h, key.value, key.size);                                                                                                                                                                  \

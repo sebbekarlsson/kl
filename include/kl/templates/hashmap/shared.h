@@ -2,6 +2,7 @@
 #define KL_HASHMAP__SHARED
 #include <stdint.h>
 #include <stdbool.h>
+#include <kl/binary/blob.h>
 /* v2: slot layout shrunk (intrusive single-link chain via `next`); collision
    slots no longer carry per-slot KL_int64_List next_ids and the redundant id
    field is gone. Wire format breaks accordingly.
@@ -10,6 +11,9 @@
 #define KL_HASHMAP_MAGIC__SHARED 0x3FA3CEC2
 
 struct KL_ALLOCATOR_STRUCT;
+
+
+typedef uint64_t (*KL_HashmapHashFn)(KL_Blob key, void* user_ptr);
 
 typedef struct {
   int64_t capacity;
@@ -20,6 +24,11 @@ typedef struct {
   * @brief allocator: optional
   **/
   struct KL_ALLOCATOR_STRUCT* allocator;
+
+  struct {
+    KL_HashmapHashFn fn;
+    void* user_ptr;
+  } hash;
 } KL_HashmapConfig;
 
 typedef struct {
