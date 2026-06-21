@@ -156,6 +156,25 @@ int kl_NAME_list_pop_at(KL_NAME_List *list, int64_t idx, T_X *out) {
   return 1;
 }
 
+int kl_NAME_list_pop_unordered_at(KL_NAME_List* list, int64_t idx, T_X* out) {
+  assert(list->initialized == true);
+
+  if (list->length <= 0 || list->items == 0)
+    return 0;
+
+  assert(idx < list->length);
+  assert(idx >= 0);
+
+  if (out != 0) {
+    *out = list->items[idx];
+  }
+
+  list->items[idx] = list->items[list->length-1];
+
+  list->length -= 1;
+
+  return 1;
+}
 
 bool kl_NAME_list_includes(KL_NAME_List *list, T_X item) {
   if (list == 0 || list->items == 0 || list->length <= 0)

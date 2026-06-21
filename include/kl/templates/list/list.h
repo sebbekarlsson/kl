@@ -35,6 +35,7 @@ This file was automatically generated and must not be modified directly.
   void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);                     \
   int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                             \
   int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);             \
+  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out);   \
   void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);                  \
   void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other);  \
   bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);                       \
@@ -159,6 +160,19 @@ This file was automatically generated and must not be modified directly.
     for (int64_t i = idx; i < list->length - 1; i++) {                                           \
       list->items[i] = list->items[i + 1];                                                       \
     }                                                                                            \
+    list->length -= 1;                                                                           \
+    return 1;                                                                                    \
+  }                                                                                              \
+  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out) {           \
+    assert(list->initialized == true);                                                           \
+    if (list->length <= 0 || list->items == 0)                                                   \
+      return 0;                                                                                  \
+    assert(idx < list->length);                                                                  \
+    assert(idx >= 0);                                                                            \
+    if (out != 0) {                                                                              \
+      *out = list->items[idx];                                                                   \
+    }                                                                                            \
+    list->items[idx] = list->items[list->length-1];                                              \
     list->length -= 1;                                                                           \
     return 1;                                                                                    \
   }                                                                                              \
