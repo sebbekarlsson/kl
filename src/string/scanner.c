@@ -189,6 +189,22 @@ bool kl_str_scanner_has(KL_StrScanner* scanner, KL_StrConst token) {
   return memcmp(slice.value, token.value, token.length) == 0;
 }
 
+bool kl_str_scanner_has_icase(KL_StrScanner* scanner, KL_StrConst token) {
+  assert(scanner->initialized);
+  assert(scanner->str.value != 0);
+  assert(scanner->str.length > 0);
+  KL_StrConst slice = kl_str_scanner_slice(scanner, token.length);
+  if (slice.value == 0 || slice.length <= 0) return false;
+  assert(slice.value != 0);
+  assert(slice.length == token.length);
+
+  for (int64_t i = 0; i < token.length; i++) {
+    if (tolower((unsigned char)slice.value[i]) != tolower((unsigned char)token.value[i])) return false;
+  }
+
+  return true;
+}
+
 bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars) {
   assert(scanner->initialized);
   assert(scanner->str.value != 0);

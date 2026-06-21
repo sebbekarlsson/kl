@@ -63,6 +63,11 @@ KL_StrConst kl_str_scanner_slice(KL_StrScanner* scanner, int64_t length);
 bool kl_str_scanner_has(KL_StrScanner* scanner, KL_StrConst token);
 
 /**
+* @brief does not mutate the state; case-insensitive variant of kl_str_scanner_has
+**/
+bool kl_str_scanner_has_icase(KL_StrScanner* scanner, KL_StrConst token);
+
+/**
 * @brief does not mutate the state
 **/
 bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars);
