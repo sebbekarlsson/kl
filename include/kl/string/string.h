@@ -81,7 +81,7 @@ bool kl_str_buffer_append_fmt(KL_StrBuffer* buff, const char* fmt, ...)
 KL_StrConst kl_str_buffer_set(KL_StrBuffer* buff, KL_StrConst value);
 
 bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count);
-void kl_str_buffer_clear(KL_StrBuffer* buff);
+KL_StrBuffer* kl_str_buffer_clear(KL_StrBuffer* buff);
 
 
 // Replaces occurrences of `search` with `repl`, using the caller-provided

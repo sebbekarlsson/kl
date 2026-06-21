@@ -354,8 +354,8 @@ bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count) {
   return true;
 }
 
-void kl_str_buffer_clear(KL_StrBuffer* buff) {
-  if (buff->data == 0 || buff->capacity <= 0) return;
+KL_StrBuffer* kl_str_buffer_clear(KL_StrBuffer* buff) {
+  if (buff->data == 0 || buff->capacity <= 0) return buff;
   /* Only clear the region that was actually written since the last clear,
      not the whole capacity. The buffer can be backed by a multi-megabyte
      allocation (e.g. the JSON tokenizer sizes it to the input length), so
@@ -363,4 +363,6 @@ void kl_str_buffer_clear(KL_StrBuffer* buff) {
   if (buff->length > 0) memset(&buff->data[0], 0, buff->length);
   buff->data[0] = '\0';
   buff->length = 0;
+
+  return buff;
 }

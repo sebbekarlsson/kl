@@ -512,6 +512,16 @@ void kl_allocator_restore(KL_Allocator* allocator, KL_AllocatorMark mark) {
   allocator->pages.length = mark.pages_length;
   allocator->allocations.length = mark.allocations_length;
 
+  // Maintain the invariant new_page()/find_avail_page() rely on (and that
+  // destroy/destroy_all_pages uphold): an empty page list has a NULL backing
+  // array. Restoring down to zero pages — e.g. a mark taken right after init,
+  // before any allocation — must release the array too, otherwise the next
+  // allocation trips `assert(pages.items == 0)`.
+  if (allocator->pages.length == 0 && allocator->pages.items != 0) {
+    free(allocator->pages.items);
+    allocator->pages.items = 0;
+  }
+
   free(mark.page_bytes_written);
 
   kl_mutex_unlock(&allocator->lock);
