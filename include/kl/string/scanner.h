@@ -25,7 +25,6 @@ bool kl_str_scanner_is_eof(KL_StrScanner* scanner);
 **/
 bool kl_str_scanner_has_more(KL_StrScanner* scanner);
 
-
 bool kl_str_scanner_eat_char(KL_StrScanner* scanner, char c);
 
 bool kl_str_scanner_eat_until_char(KL_StrScanner* scanner, char c, KL_StrBuffer* out);
@@ -72,5 +71,11 @@ bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars);
 * @brief does not mutate the state
 **/
 bool kl_str_scanner_has_identifier_start(KL_StrScanner* scanner);
+
+bool kl_str_scanner_has_digit(KL_StrScanner* scanner);
+
+bool kl_str_scanner_has_alpha(KL_StrScanner* scanner);
+
+bool kl_str_scanner_has_alnum(KL_StrScanner* scanner);
 
 #endif

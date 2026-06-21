@@ -205,3 +205,15 @@ bool kl_str_scanner_has_any_of(KL_StrScanner* scanner, KL_StrConst chars) {
 bool kl_str_scanner_has_identifier_start(KL_StrScanner* scanner) {
   return kl_str_scanner_has_any_of(scanner, alpha_ish);
 }
+
+bool kl_str_scanner_has_digit(KL_StrScanner* scanner) {
+  return scanner->c != 0 && isdigit(scanner->c);
+}
+
+bool kl_str_scanner_has_alpha(KL_StrScanner* scanner) {
+  return scanner->c !=0 && isalpha(scanner->c);
+}
+
+bool kl_str_scanner_has_alnum(KL_StrScanner* scanner) {
+  return scanner->c != 0 && isalnum(scanner->c);
+}
