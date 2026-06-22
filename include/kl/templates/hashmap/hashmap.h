@@ -356,7 +356,7 @@ This file was automatically generated and must not be modified directly.
     if (map->used_slots.initialized) {                                                                                                                                                                  \
       for (int64_t i = map->used_slots.length-1; i >= 0; i--) {                                                                                                                                         \
         if (map->used_slots.items[i] == slot_id) {                                                                                                                                                      \
-          kl_int64_list_pop_at(&map->used_slots, i, 0);                                                                                                                                                 \
+          kl_int64_list_pop_unordered_at(&map->used_slots, i, 0);                                                                                                                                       \
           break;                                                                                                                                                                                        \
         }                                                                                                                                                                                               \
       }                                                                                                                                                                                                 \

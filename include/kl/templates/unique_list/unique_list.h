@@ -17,23 +17,24 @@ This file was automatically generated and must not be modified directly.
 #include <assert.h>
 
 
-#define KL_DEFINE_UNIQUE_LIST(NAME, T)                                                      \
-  KL_DEFINE_LIST(NAME##__u, T);                                                             \
-  typedef struct {                                                                          \
-    KL_UniqueListConfig config;                                                             \
-    KL_##NAME##__u_List _list;                                                              \
-    KL_int64_Hashmap lookup;                                                                \
-    bool initialized;                                                                       \
-  } KL_##NAME##_UniqueList;                                                                 \
-  int kl_##NAME##_unique_list_init(KL_##NAME##_UniqueList* list, KL_UniqueListConfig cfg);  \
-  void kl_##NAME##_unique_list_destroy(KL_##NAME##_UniqueList* list);                       \
-  void kl_##NAME##_unique_list_reset(KL_##NAME##_UniqueList* list);                         \
-  bool kl_##NAME##_unique_list_push(KL_##NAME##_UniqueList *list, T item);                  \
-  bool kl_##NAME##_unique_list_pop(KL_##NAME##_UniqueList* list, T* out);                   \
-  bool kl_##NAME##_unique_list_pop_at(KL_##NAME##_UniqueList* list, int64_t idx, T* out);   \
-  void kl_##NAME##_unique_list_grow(KL_##NAME##_UniqueList *list, int64_t n_slots);         \
-  bool kl_##NAME##_unique_list_includes(KL_##NAME##_UniqueList* list, T item);              \
-  int64_t kl_##NAME##_unique_list_index_of(KL_##NAME##_UniqueList* list, T item);           \
+#define KL_DEFINE_UNIQUE_LIST(NAME, T)                                                               \
+  KL_DEFINE_LIST(NAME##__u, T);                                                                      \
+  typedef struct {                                                                                   \
+    KL_UniqueListConfig config;                                                                      \
+    KL_##NAME##__u_List _list;                                                                       \
+    KL_int64_Hashmap lookup;                                                                         \
+    bool initialized;                                                                                \
+  } KL_##NAME##_UniqueList;                                                                          \
+  int kl_##NAME##_unique_list_init(KL_##NAME##_UniqueList* list, KL_UniqueListConfig cfg);           \
+  void kl_##NAME##_unique_list_destroy(KL_##NAME##_UniqueList* list);                                \
+  void kl_##NAME##_unique_list_reset(KL_##NAME##_UniqueList* list);                                  \
+  bool kl_##NAME##_unique_list_push(KL_##NAME##_UniqueList *list, T item);                           \
+  bool kl_##NAME##_unique_list_pop(KL_##NAME##_UniqueList* list, T* out);                            \
+  bool kl_##NAME##_unique_list_pop_at(KL_##NAME##_UniqueList* list, int64_t idx, T* out);            \
+  bool kl_##NAME##_unique_list_pop_unordered_at(KL_##NAME##_UniqueList* list, int64_t idx, T* out);  \
+  void kl_##NAME##_unique_list_grow(KL_##NAME##_UniqueList *list, int64_t n_slots);                  \
+  bool kl_##NAME##_unique_list_includes(KL_##NAME##_UniqueList* list, T item);                       \
+  int64_t kl_##NAME##_unique_list_index_of(KL_##NAME##_UniqueList* list, T item);                    \
   bool kl_##NAME##_unique_list_remove(KL_##NAME##_UniqueList* list, T item);
 
 
@@ -99,6 +100,22 @@ This file was automatically generated and must not be modified directly.
                                                                                                                   \
     kl_int64_hashmap_unset(&list->lookup, KL_BLOB_AUTO(item));                                                    \
     return kl_##NAME##__u_list_pop_at(&list->_list, idx, out) == 1;                                               \
+  }                                                                                                               \
+  bool kl_##NAME##_unique_list_pop_unordered_at(KL_##NAME##_UniqueList* list, int64_t idx, T* out) {              \
+    assert(list->initialized);                                                                                    \
+    if (idx < 0 || idx >= list->_list.length || list->_list.length <= 0 || list->_list.items == 0) return false;  \
+    T item = list->_list.items[idx];                                                                              \
+    for (int64_t i = 0; i < list->lookup.used_slots.length; i++) {                                                \
+      int64_t slot_idx = list->lookup.used_slots.items[i];                                                        \
+      KL_int64_HashmapSlot* slot = &list->lookup.slots.items[slot_idx];                                           \
+      if (slot->value > idx) {                                                                                    \
+        slot->value -= 1;                                                                                         \
+        assert(slot->value >= 0);                                                                                 \
+      }                                                                                                           \
+    }                                                                                                             \
+                                                                                                                  \
+    kl_int64_hashmap_unset(&list->lookup, KL_BLOB_AUTO(item));                                                    \
+    return kl_##NAME##__u_list_pop_unordered_at(&list->_list, idx, out) == 1;                                     \
   }                                                                                                               \
   void kl_##NAME##_unique_list_grow(KL_##NAME##_UniqueList *list, int64_t n_slots) {                              \
     assert(list->initialized);                                                                                    \

@@ -31,6 +31,8 @@ bool kl_NAME_unique_list_pop(KL_NAME_UniqueList* list, T_X* out);
 
 bool kl_NAME_unique_list_pop_at(KL_NAME_UniqueList* list, int64_t idx, T_X* out);
 
+bool kl_NAME_unique_list_pop_unordered_at(KL_NAME_UniqueList* list, int64_t idx, T_X* out);
+
 void kl_NAME_unique_list_grow(KL_NAME_UniqueList *list, int64_t n_slots);
 
 bool kl_NAME_unique_list_includes(KL_NAME_UniqueList* list, T_X item);

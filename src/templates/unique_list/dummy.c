@@ -76,6 +76,26 @@ bool kl_NAME_unique_list_pop_at(KL_NAME_UniqueList* list, int64_t idx, T_X* out)
   return kl_NAME__u_list_pop_at(&list->_list, idx, out) == 1;
 }
 
+bool kl_NAME_unique_list_pop_unordered_at(KL_NAME_UniqueList* list, int64_t idx, T_X* out) {
+  assert(list->initialized);
+  if (idx < 0 || idx >= list->_list.length || list->_list.length <= 0 || list->_list.items == 0) return false;
+  T_X item = list->_list.items[idx];
+
+  // update indices
+  for (int64_t i = 0; i < list->lookup.used_slots.length; i++) {
+    int64_t slot_idx = list->lookup.used_slots.items[i];
+    KL_int64_HashmapSlot* slot = &list->lookup.slots.items[slot_idx];
+
+    if (slot->value > idx) {
+      slot->value -= 1;
+      assert(slot->value >= 0);
+    }
+  }
+  
+  kl_int64_hashmap_unset(&list->lookup, KL_BLOB_AUTO(item));
+  return kl_NAME__u_list_pop_unordered_at(&list->_list, idx, out) == 1;
+}
+
 void kl_NAME_unique_list_grow(KL_NAME_UniqueList *list, int64_t n_slots) {
   assert(list->initialized);
   kl_NAME__u_list_grow(&list->_list, n_slots);
