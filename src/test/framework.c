@@ -1,4 +1,5 @@
 #include <kl/test/framework.h>
+#include <kl/time/time.h>
 
 // Shared color state — see framework.h.
 bool g_use_color = true;
@@ -77,12 +78,26 @@ void kl_test_print_summary(void) {
   printf("\n");
 }
 
-void kl_test_run_entry(KL_TestEntry* entry) {
+void kl_test_run_entry(const KL_TestEntry* entry) {
   KL_TestFunctionContext ctx = {0};
   ctx.current_suite_name = entry->name;
   g_current_ctx = &ctx;
   KL_TEST_BEGIN(entry->name);
   entry->fn(&ctx);
+  KL_TEST_END(entry->name);
+  g_current_ctx = NULL;
+}
+
+void kl_test_run_entry_get_info(const KL_TestEntry* entry, KL_TestInfo* out) {
+  KL_TestFunctionContext ctx = {0};
+  ctx.current_suite_name = entry->name;
+  g_current_ctx = &ctx;
+  KL_TEST_BEGIN(entry->name);
+  double started_at = kl_time_now_ms__monotonic();
+  entry->fn(&ctx);
+  double now = kl_time_now_ms__monotonic();
+  double duration_ms = now - started_at;
+  out->duration_ms = duration_ms;
   KL_TEST_END(entry->name);
   g_current_ctx = NULL;
 }

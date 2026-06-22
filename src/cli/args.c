@@ -67,3 +67,9 @@ KL_StrConst kl_cli_get_arg(int argc, char* argv[], KL_StrConst key, bool require
 
   return (KL_StrConst){0};
 }
+
+int64_t kl_cli_get_arg_int(int argc, char* argv[], KL_StrConst key, int64_t fallback) {
+  KL_StrConst arg = kl_cli_get_arg(argc, argv, key, false);
+  if (arg.value == 0) return fallback;
+  return atoll(arg.value);
+}

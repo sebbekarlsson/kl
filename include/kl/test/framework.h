@@ -80,7 +80,13 @@ void kl_test_print_duration(long long us);
 void kl_test_print_summary(void);
 
 // Run a single test entry (sets up context, calls BEGIN/END)
-void kl_test_run_entry(KL_TestEntry* entry);
+void kl_test_run_entry(const KL_TestEntry* entry);
+
+typedef struct {
+  double duration_ms;
+} KL_TestInfo;
+
+void kl_test_run_entry_get_info(const KL_TestEntry* entry, KL_TestInfo* out);
 
 #define KL_TEST_STR(A) #A
 

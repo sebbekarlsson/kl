@@ -76,3 +76,10 @@ endfunction()
 add_subproject(executables test)
 add_subproject(executables kl_playground)
 add_subproject(executables kl_bench)
+target_include_directories(kl_bench PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/executables/test/include)
+# Reuse the test suites for benchmarking: the test functions referenced via
+# TEST_ENTRIES are defined in executables/test/src/test_*.c, which are otherwise
+# only compiled into the `test` executable. Glob them in (excludes main.c, which
+# carries the test runner's own main()).
+file(GLOB KL_TEST_SUITE_FILES ${CMAKE_CURRENT_SOURCE_DIR}/executables/test/src/test_*.c)
+target_sources(kl_bench PRIVATE ${KL_TEST_SUITE_FILES})
