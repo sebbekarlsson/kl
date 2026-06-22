@@ -31,6 +31,7 @@ This file was automatically generated and must not be modified directly.
   int kl_##NAME##_list_init(KL_##NAME##_List* list, KL_ListConfig cfg);                 \
   void kl_##NAME##_list_destroy(KL_##NAME##_List* list);                                \
   void kl_##NAME##_list_reset(KL_##NAME##_List* list);                                  \
+  void kl_##NAME##_list_reset_fast(KL_##NAME##_List* list);                             \
   void kl_##NAME##_list_push(KL_##NAME##_List *list, T item);                           \
   void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);                     \
   int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                             \
@@ -78,6 +79,9 @@ This file was automatically generated and must not be modified directly.
         memset(&list->items[0], 0, list->n_slots_allocated * sizeof(T));                         \
       }                                                                                          \
     }                                                                                            \
+    list->length = 0;                                                                            \
+  }                                                                                              \
+  void kl_##NAME##_list_reset_fast(KL_##NAME##_List *list) {                                     \
     list->length = 0;                                                                            \
   }                                                                                              \
   void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots) {                          \

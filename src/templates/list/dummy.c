@@ -48,6 +48,10 @@ void kl_NAME_list_reset(KL_NAME_List *list) {
   list->length = 0;
 }
 
+void kl_NAME_list_reset_fast(KL_NAME_List *list) {
+  list->length = 0;
+}
+
 void kl_NAME_list_grow(KL_NAME_List *list, int64_t n_slots) {
   if (list->config.allocator != 0) {
     list->items = (T_X *)kl_allocator_realloc_aligned(

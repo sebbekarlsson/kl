@@ -24,6 +24,8 @@ void kl_NAME_list_destroy(KL_NAME_List* list);
 
 void kl_NAME_list_reset(KL_NAME_List* list);
 
+void kl_NAME_list_reset_fast(KL_NAME_List* list);
+
 void kl_NAME_list_push(KL_NAME_List *list, T_X item);
 
 void kl_NAME_list_push_start(KL_NAME_List *list, T_X item);
