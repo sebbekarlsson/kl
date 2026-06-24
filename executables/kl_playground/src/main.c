@@ -1,23 +1,30 @@
 #include <kl/cli/program.h>
 #include <kl/string/string.h>
 #include <kl/hash/hash.h>
+#include <kl/templates/hashmap/int64_hashmap.h>
 #include <assert.h>
 #include <math.h>
 #include <stdio.h>
 
+
+static inline void int64_to_string(void* value, KL_StrBuffer* out) {
+  kl_str_buffer_append_fmt(out, "%ld", *(int64_t*)value);
+}
+
 static int cmd_hash_fn(KL_CLICommand *cmd) {
 
-  uint32_t seed = 8381U;
+  KL_int64_Hashmap map = {0};
+  kl_int64_hashmap_init(&map, (KL_HashmapConfig){
+    .capacity = 5013,
+    .collision_capacity = 4,
+    .value_to_string = int64_to_string
+  });
 
-  for (int32_t i = 0; i < 1000000; i++) {
-    int32_t v = kl_hash_uint32_next_int32(&seed, -10, 10);
+  kl_int64_hashmap_set(&map, KL_STR_CONST_TO_BLOB(KL_STR_CONST_LIT("x")), 3);
+  kl_int64_hashmap_set(&map, KL_STR_CONST_TO_BLOB(KL_STR_CONST_LIT("y")), -4);
+  kl_int64_hashmap_set(&map, KL_STR_CONST_TO_BLOB(KL_STR_CONST_LIT("z")), 10);
 
-    assert(v >= -10);
-    assert(v <= 10);
-    printf("%d\n", v);
-    
-    
-  }
+  kl_int64_hashmap_print_json(&map, stdout);
   
   return 0;
 }

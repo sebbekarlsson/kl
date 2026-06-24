@@ -526,3 +526,62 @@ void kl_NAME_hashmap_print(KL_NAME_Hashmap* map, FILE* fp) {
   }
   fprintf(fp, "}\n");
 }
+
+/* A single set slot prints as one `"key": value` member. Collision-chain
+   slots are stored in the same `slots.items` array (appended by new_slot), so
+   the top-level loop visits every set slot directly — there is no need to walk
+   the `next` chain here, and doing so would emit each chained entry twice. */
+static void kl_NAME_hashmap_print_slot_json(KL_NAME_Hashmap* map, KL_NAME_HashmapSlot* slot, FILE* fp, int pad, KL_StrBuffer* buff) {
+  kl_str_buffer_clear(buff);
+  kl_str_buffer_stringify_blob(buff, slot->key, true, true);
+  fprintf(fp, "%*s" "\"%s\": ", pad, "", buff->data);
+
+  if (map->config.value_to_string != 0) {
+    kl_str_buffer_clear(buff);
+    map->config.value_to_string(&slot->value, buff);
+    fprintf(fp, "%s", buff->data);
+  } else {
+    /* No value formatter: fall back to the raw bytes as a quoted JSON string. */
+    kl_str_buffer_clear(buff);
+    kl_str_buffer_stringify_blob(buff, KL_BLOB_T(T_X, slot->value), true, true);
+    fprintf(fp, "\"%s\"", buff->data);
+  }
+}
+
+void kl_NAME_hashmap_print_json(KL_NAME_Hashmap* map, FILE* fp) {
+  assert(map != 0);
+  assert(map->initialized == true);
+  assert(fp != 0);
+
+  char tmp[512] = {0};
+
+  KL_StrBuffer buff = {0};
+  if (map->config.allocator) {
+    buff.allocator = map->config.allocator;
+  } else {
+    buff.data = tmp;
+    buff.capacity = sizeof(tmp);
+  }
+
+  int64_t n_slots = 0;
+  for (int64_t i = 0; i < map->slots.length; i++) {
+    if (map->slots.items[i].is_set) n_slots += 1;
+  }
+
+  int64_t count = 0;
+  fprintf(fp, "{\n");
+  for (int64_t i = 0; i < map->slots.length; i++) {
+    KL_NAME_HashmapSlot* slot = &map->slots.items[i];
+    if (!slot->is_set) continue;
+
+    kl_NAME_hashmap_print_slot_json(map, slot, fp, 2, &buff);
+
+    if (count < (n_slots - 1)) {
+      fprintf(fp, ",\n");
+    } else {
+      fprintf(fp, "\n");
+    }
+    count++;
+  }
+  fprintf(fp, "}\n");
+}

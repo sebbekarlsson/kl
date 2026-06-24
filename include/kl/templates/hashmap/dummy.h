@@ -78,4 +78,6 @@ void kl_NAME_hashmap_reset(KL_NAME_Hashmap* map);
 
 void kl_NAME_hashmap_print(KL_NAME_Hashmap* map, FILE* fp);
 
+void kl_NAME_hashmap_print_json(KL_NAME_Hashmap* map, FILE* fp);
+
 #endif

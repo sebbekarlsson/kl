@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <kl/binary/blob.h>
+#include <kl/string/string.h>
 /* v2: slot layout shrunk (intrusive single-link chain via `next`); collision
    slots no longer carry per-slot KL_int64_List next_ids and the redundant id
    field is gone. Wire format breaks accordingly.
@@ -14,6 +15,8 @@ struct KL_ALLOCATOR_STRUCT;
 
 
 typedef uint64_t (*KL_HashmapHashFn)(KL_Blob key, void* user_ptr);
+
+typedef void (*KL_HashmapValueToStringFn)(void* value, KL_StrBuffer* out);
 
 typedef struct {
   int64_t capacity;
@@ -29,6 +32,9 @@ typedef struct {
     KL_HashmapHashFn fn;
     void* user_ptr;
   } hash;
+
+
+  KL_HashmapValueToStringFn value_to_string;
 } KL_HashmapConfig;
 
 typedef struct {

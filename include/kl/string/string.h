@@ -83,6 +83,10 @@ KL_StrConst kl_str_buffer_set(KL_StrBuffer* buff, KL_StrConst value);
 bool kl_str_buffer_repeat_char(KL_StrBuffer* buff, char c, int64_t count);
 KL_StrBuffer* kl_str_buffer_clear(KL_StrBuffer* buff);
 
+// Renders `blob` into `buff` as text. When `json_escape` is true the output is
+// a valid JSON string body (special/control chars are backslash-escaped),
+// suitable for emitting between surrounding double quotes.
+KL_StrBuffer* kl_str_buffer_stringify_blob(KL_StrBuffer* buff, KL_Blob blob, bool null_terminate, bool json_escape);
 
 // Replaces occurrences of `search` with `repl`, using the caller-provided
 // `buffer` as scratch space (so the call-site owns the allocation strategy).

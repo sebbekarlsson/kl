@@ -366,3 +366,49 @@ KL_StrBuffer* kl_str_buffer_clear(KL_StrBuffer* buff) {
 
   return buff;
 }
+
+KL_StrBuffer* kl_str_buffer_stringify_blob(KL_StrBuffer* buff, KL_Blob blob, bool null_terminate, bool json_escape) {
+  if (blob.size <= 0 || blob.value == 0) {
+    kl_str_buffer_append(buff, KL_STR_CONST_LIT("(null)"));
+    return buff;
+  }
+
+  for (int64_t i = 0; i < blob.size; i++) {
+    uint8_t x = blob.value[i];
+
+    if (x == 0 && null_terminate) {
+      break;
+    }
+
+    if (json_escape) {
+      /* Emit a string body that is valid inside a JSON "..." literal. Bytes
+         >= 0x20 (including UTF-8 continuation bytes) pass through verbatim;
+         control chars use their short escape or a \u00XX hex escape. */
+      switch (x) {
+        case '"':  kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\\"")); continue;
+        case '\\': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\\\")); continue;
+        case '\b': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\b"));  continue;
+        case '\f': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\f"));  continue;
+        case '\n': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\n"));  continue;
+        case '\r': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\r"));  continue;
+        case '\t': kl_str_buffer_append(buff, KL_STR_CONST_LIT("\\t"));  continue;
+        default: break;
+      }
+      if (x < 0x20) {
+        kl_str_buffer_append_fmt(buff, "\\u%04x", x);
+        continue;
+      }
+      kl_str_buffer_append_char(buff, (char)x);
+      continue;
+    }
+
+    if (isprint((char)x)) {
+      kl_str_buffer_append_char(buff, (char)x);
+      continue;
+    }
+
+    kl_str_buffer_append_fmt(buff, "%x", x);
+  }
+
+  return buff;
+}
