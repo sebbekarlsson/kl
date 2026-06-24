@@ -384,3 +384,123 @@ void test_binary_pool_count_one_pool() {
 
   kl_test_bp_teardown(&fx);
 }
+
+void test_binary_pool_handle_resolve_and_get() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 4, sizeof(int64_t), _Alignof(int64_t));
+
+  uint8_t* p = 0;
+  int64_t h = kl_binary_pool_acquire(&fx.pool, &p);
+  KL_TEST_ASSERT(h >= 0 && p != 0, "acquire returns a valid handle and pointer");
+
+  int64_t idx = kl_binary_pool_resolve(&fx.pool, h);
+  KL_TEST_ASSERT(idx == kl_binary_pool_handle_index(h), "resolve matches the encoded index");
+  KL_TEST_ASSERT(kl_binary_pool_get(&fx.pool, h) == p, "get-by-handle matches the acquire pointer");
+  KL_TEST_ASSERT(kl_binary_pool_get_slot(&fx.pool, idx) == p, "resolved index points at the same storage");
+  KL_TEST_ASSERT(kl_binary_pool_has(&fx.pool, h), "fresh handle reports present");
+
+  kl_test_bp_teardown(&fx);
+}
+
+void test_binary_pool_handle_invalid_after_release() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 4, sizeof(int64_t), _Alignof(int64_t));
+
+  int64_t h = kl_binary_pool_acquire(&fx.pool, 0);
+  KL_TEST_ASSERT(h >= 0, "acquire ok");
+
+  kl_binary_pool_release(&fx.pool, h);
+  KL_TEST_ASSERT(!kl_binary_pool_has(&fx.pool, h), "released handle reports absent");
+  KL_TEST_ASSERT(kl_binary_pool_resolve(&fx.pool, h) == -1, "released handle resolves to -1");
+  KL_TEST_ASSERT(kl_binary_pool_get(&fx.pool, h) == 0, "released handle gets null");
+
+  kl_test_bp_teardown(&fx);
+}
+
+// The core ABA case: a single-slot pool guarantees the freed index is recycled,
+// so the old handle would alias the new occupant if it weren't generation-checked.
+void test_binary_pool_handle_rejects_recycled_slot() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 1, sizeof(int64_t), _Alignof(int64_t));
+
+  uint8_t* p0 = 0;
+  int64_t h0 = kl_binary_pool_acquire(&fx.pool, &p0);
+  KL_TEST_ASSERT(h0 >= 0 && p0 != 0, "first acquire returns a valid handle");
+  KL_TEST_ASSERT(kl_binary_pool_handle_index(h0) == 0, "slot index is 0 in a one-slot pool");
+
+  kl_binary_pool_release(&fx.pool, h0);
+
+  uint8_t* p1 = 0;
+  int64_t h1 = kl_binary_pool_acquire(&fx.pool, &p1);
+  KL_TEST_ASSERT(h1 >= 0 && p1 == p0, "slot is recycled into the same storage");
+  KL_TEST_ASSERT(h1 != h0, "recycled slot yields a distinct handle");
+
+  KL_TEST_ASSERT(!kl_binary_pool_has(&fx.pool, h0), "stale handle rejected after reuse");
+  KL_TEST_ASSERT(kl_binary_pool_resolve(&fx.pool, h0) == -1, "stale handle resolves to -1 after reuse");
+  KL_TEST_ASSERT(kl_binary_pool_get(&fx.pool, h0) == 0, "stale handle gets null after reuse");
+  KL_TEST_ASSERT(kl_binary_pool_has(&fx.pool, h1), "fresh handle still valid");
+
+  kl_test_bp_teardown(&fx);
+}
+
+// Releasing a stale handle must not evict the live occupant that recycled its slot.
+void test_binary_pool_handle_stale_release_is_noop() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 1, sizeof(int64_t), _Alignof(int64_t));
+
+  int64_t h0 = kl_binary_pool_acquire(&fx.pool, 0);
+  kl_binary_pool_release(&fx.pool, h0);
+  int64_t h1 = kl_binary_pool_acquire(&fx.pool, 0);
+
+  kl_binary_pool_release(&fx.pool, h0); // stale — must be ignored
+  KL_TEST_ASSERT(kl_binary_pool_has(&fx.pool, h1), "live handle survives a stale release");
+
+  kl_test_bp_teardown(&fx);
+}
+
+void test_binary_pool_handle_invalid_after_reset() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 2, sizeof(int64_t), _Alignof(int64_t));
+
+  int64_t h0 = kl_binary_pool_acquire(&fx.pool, 0);
+  kl_binary_pool_reset(&fx.pool);
+  KL_TEST_ASSERT(!kl_binary_pool_has(&fx.pool, h0), "handle invalid after reset");
+
+  // Generations are kept monotonic across reset, so a post-reset acquire can
+  // never mint a handle equal to one handed out before the reset.
+  int64_t h1 = kl_binary_pool_acquire(&fx.pool, 0);
+  KL_TEST_ASSERT(h1 != h0, "post-reset handle distinct from pre-reset handle");
+  KL_TEST_ASSERT(!kl_binary_pool_has(&fx.pool, h0), "old handle stays invalid after reuse");
+
+  kl_test_bp_teardown(&fx);
+}
+
+// White-box: jam a slot's generation to the field max so the next acquire wraps.
+// The handle must stay non-negative (sign bit reserved) and still resolve.
+void test_binary_pool_handle_generation_wraps() {
+  KL_TestBP fx = {0};
+  kl_test_bp_setup(&fx, 1, sizeof(int64_t), _Alignof(int64_t));
+
+  // First acquire allocates the internal arrays so we can poke `generations`.
+  int64_t h = kl_binary_pool_acquire(&fx.pool, 0);
+  KL_TEST_ASSERT(h >= 0, "initial handle non-negative");
+  kl_binary_pool_release(&fx.pool, h);
+
+  fx.pool.generations[0] = KL_BINARY_POOL_HANDLE_GENERATION_MASK; // 2^31 - 1
+
+  // The high-generation acquire (just below the wrap) is still non-negative.
+  int64_t hmax = kl_binary_pool_acquire(&fx.pool, 0);
+  KL_TEST_ASSERT(hmax >= 0, "max-generation handle stays non-negative");
+  KL_TEST_ASSERT(kl_binary_pool_has(&fx.pool, hmax), "max-generation handle resolves");
+  kl_binary_pool_release(&fx.pool, hmax);
+
+  // Now force the wrap: generation goes 2^31-1 -> 0 modulo the field.
+  fx.pool.generations[0] = KL_BINARY_POOL_HANDLE_GENERATION_MASK;
+  int64_t hwrap = kl_binary_pool_acquire(&fx.pool, 0);
+  KL_TEST_ASSERT(hwrap >= 0, "wrapped handle stays non-negative");
+  KL_TEST_ASSERT(kl_binary_pool_handle_generation(hwrap) == 0, "generation wrapped to 0");
+  KL_TEST_ASSERT(kl_binary_pool_has(&fx.pool, hwrap), "wrapped handle resolves");
+  KL_TEST_ASSERT(kl_binary_pool_resolve(&fx.pool, hwrap) == 0, "wrapped handle resolves to slot 0");
+
+  kl_test_bp_teardown(&fx);
+}

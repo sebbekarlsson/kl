@@ -33,6 +33,11 @@ typedef struct {
   // direct pointer for O(1) swap-and-pop on release.
   int64_t* taken_pos;
 
+  // For each slot: a version counter bumped on every acquire. Encoded into the
+  // high bits of a handle so a stale handle (whose slot was released and later
+  // recycled into a different occupant) can be detected and rejected.
+  int64_t* generations;
+
   KL_Mutex lock;
 } KL_BinaryPool;
 
@@ -42,6 +47,12 @@ void kl_binary_pool_destroy(KL_BinaryPool* pool);
 
 void kl_binary_pool_reset(KL_BinaryPool* pool);
 
+// --- Index-addressed API -----------------------------------------------------
+// Slots are addressed by a bare index. The index stays valid only while the
+// caller knows the slot has not been released; after a release+reacquire the
+// same index may name a different occupant. Use the handle API below when you
+// need to hold a reference across possible reuse.
+
 uint8_t* kl_binary_pool_acquire_slot(KL_BinaryPool* pool, int64_t* out_idx);
 
 uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx);
@@ -49,6 +60,46 @@ uint8_t* kl_binary_pool_get_slot(KL_BinaryPool* pool, int64_t idx);
 bool kl_binary_pool_has_slot(KL_BinaryPool* pool, int64_t idx);
 
 void kl_binary_pool_release_slot(KL_BinaryPool* pool, int64_t idx);
+
+// --- Handle-addressed API ----------------------------------------------------
+// A handle packs the slot index in the low 32 bits and the slot's generation in
+// the next 31 bits; the top bit is reserved 0 so handles are always
+// non-negative (and -1 stays a unique "invalid" sentinel). The generation is
+// bumped on every acquire, so a handle stops resolving once its slot is released
+// or recycled — a stale handle can't address the wrong occupant.
+//
+// The generation wraps modulo 2^31 instead of overflowing. A wrap can only
+// alias a handle that was already released (a live handle sits on a taken slot,
+// whose generation is frozen), and only after that exact slot is re-acquired
+// 2^31 times — an accepted trade for keeping handles a cheap int64.
+#define KL_BINARY_POOL_HANDLE_INDEX_BITS 32
+#define KL_BINARY_POOL_HANDLE_INDEX_MASK ((int64_t)0xFFFFFFFF)
+#define KL_BINARY_POOL_HANDLE_GENERATION_MASK ((int64_t)0x7FFFFFFF)
+
+static inline int64_t kl_binary_pool_handle_index(int64_t handle) {
+  return handle & KL_BINARY_POOL_HANDLE_INDEX_MASK;
+}
+
+static inline int64_t kl_binary_pool_handle_generation(int64_t handle) {
+  return ((int64_t)((uint64_t)handle >> KL_BINARY_POOL_HANDLE_INDEX_BITS))
+       & KL_BINARY_POOL_HANDLE_GENERATION_MASK;
+}
+
+// Acquire a slot and return a versioned handle (>= 0), or -1 if the pool is
+// full. If out_ptr is non-null it receives the slot's storage pointer.
+int64_t kl_binary_pool_acquire(KL_BinaryPool* pool, uint8_t** out_ptr);
+
+// Map a handle to its live slot index, or -1 if the handle is stale (slot freed
+// or recycled into a newer occupant). Useful to bridge into the index API.
+int64_t kl_binary_pool_resolve(KL_BinaryPool* pool, int64_t handle);
+
+// Handle-addressed counterparts of get/has/release. They validate the
+// generation, so a stale handle reads as absent / releases nothing.
+uint8_t* kl_binary_pool_get(KL_BinaryPool* pool, int64_t handle);
+
+bool kl_binary_pool_has(KL_BinaryPool* pool, int64_t handle);
+
+void kl_binary_pool_release(KL_BinaryPool* pool, int64_t handle);
 
 
 #endif

@@ -262,6 +262,12 @@ static const KL_TestEntry TEST_ENTRIES[] = {
   KL_TEST_ENTRY(test_binary_pool_reset_marks_all_free),
   KL_TEST_ENTRY(test_binary_pool_reset_before_acquire_is_safe),
   KL_TEST_ENTRY(test_binary_pool_count_one_pool),
+  KL_TEST_ENTRY(test_binary_pool_handle_resolve_and_get),
+  KL_TEST_ENTRY(test_binary_pool_handle_invalid_after_release),
+  KL_TEST_ENTRY(test_binary_pool_handle_rejects_recycled_slot),
+  KL_TEST_ENTRY(test_binary_pool_handle_stale_release_is_noop),
+  KL_TEST_ENTRY(test_binary_pool_handle_invalid_after_reset),
+  KL_TEST_ENTRY(test_binary_pool_handle_generation_wraps),
 
   KL_TEST_ENTRY(test_vec2_constructors),
   KL_TEST_ENTRY(test_vec2_mag),

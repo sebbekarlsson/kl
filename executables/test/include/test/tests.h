@@ -313,6 +313,12 @@ void test_binary_pool_exhaust_then_release_all();
 void test_binary_pool_reset_marks_all_free();
 void test_binary_pool_reset_before_acquire_is_safe();
 void test_binary_pool_count_one_pool();
+void test_binary_pool_handle_resolve_and_get();
+void test_binary_pool_handle_invalid_after_release();
+void test_binary_pool_handle_rejects_recycled_slot();
+void test_binary_pool_handle_stale_release_is_noop();
+void test_binary_pool_handle_invalid_after_reset();
+void test_binary_pool_handle_generation_wraps();
 
 /* ===================== vec2 (test_vec.c) ===================== */
 void test_vec2_constructors();
