@@ -8,6 +8,7 @@
 
 bool kl_str_const_eq(KL_StrConst a, KL_StrConst b) {
   if (a.length != b.length) return false;
+  if (a.value == b.value) return true;
   if (a.length <= 0) return true;
   if (a.value == 0 || b.value == 0) return false;
   return memcmp(a.value, b.value, a.length) == 0;
