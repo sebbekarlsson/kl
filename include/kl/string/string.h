@@ -20,6 +20,7 @@ typedef struct {
 #define KL_STR(VALUE) ((KL_Str){ .value = VALUE, .length = strlen(VALUE) })
 #define KL_STR_CONST(VALUE) ((KL_StrConst){ .value = VALUE, .length = strlen(VALUE) })
 #define KL_STR_CONST_LIT(VALUE) ((KL_StrConst){ .value = VALUE, .length = sizeof(VALUE) - 1 })
+#define KL_STR_CONST_NULL() ((KL_StrConst){ .value = 0, .length = 0 })
 
 #define KL_STR_CONST_TO_BLOB(STR) ((KL_Blob){ .value = (uint8_t*)(STR).value, .size = (STR).length })
 
