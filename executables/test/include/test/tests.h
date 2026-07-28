@@ -29,6 +29,7 @@
 #include <kl/templates/sparse_set/dummy.h>
 #include <kl/templates/ringbuffer/f32_ringbuffer.h>
 #include <kl/binary/blob.h>
+#include <kl/binary/serial.h>
 #include <kl/io/fs.h>
 #include <kl/json/tokenizer.h>
 #include <kl/json/parser.h>
@@ -429,6 +430,20 @@ void test_noise_perlin_2d_fbm_single_octave_equals_base();
 void test_noise_perlin_2d_fbm_range();
 void test_noise_simplex_2d_fbm_single_octave_equals_base();
 void test_noise_simplex_2d_fbm_range();
+
+/* ===================== serial (test_serial.c) ===================== */
+void test_serial_size_of_component();
+void test_serial_raw_block_round_trip();
+void test_serial_decode_scalar_array();
+void test_serial_decode_scalar_single_f64();
+void test_serial_decode_string();
+void test_serial_decode_empty_string();
+void test_serial_decode_nil_block();
+void test_serial_decode_nested_blocks();
+void test_serial_decode_empty_block_container();
+void test_serial_decode_truncated_file_fails();
+void test_serial_decode_size_length_mismatch_fails();
+void test_serial_decode_sequential_blocks();
 
 /* ===================== hash (test_hash.c) ===================== */
 void test_hash_uuidv4_format();
