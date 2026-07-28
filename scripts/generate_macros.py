@@ -169,6 +169,12 @@ if __name__ == '__main__':
         name='blob_ptr'
     )
     generate_type(
+        includes=[f'#include <{NAME}/binary/blob.h>'],
+        template_name='list',
+        typename=f'{PREFIX}Blob',
+        name='blob'
+    )
+    generate_type(
         includes=[f'#include <{NAME}/common/int64_pair.h>'],
         template_name='list',
         typename=f'{PREFIX}Int64Pair',
