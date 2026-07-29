@@ -310,6 +310,75 @@ void test_allocator_free_zeros_memory_and_reuses_slot() {
   kl_allocator_destroy(&a);
 }
 
+void test_allocator_free_reuses_slot_aligned() {
+  // An aligned request must be able to reuse a freed block of the same user
+  // size. Freed records store the user size, so the freed-slot match must
+  // compare against it — matching against the bump footprint (size +
+  // alignment slack) makes same-size recycling impossible for aligned allocs.
+  KL_Allocator a = {0};
+  kl_allocator_init(&a, (KL_AllocatorConfig){
+    .capacity = 192,
+    .tracked_allocations_capacity = 8,
+    .track_allocations = true,
+  });
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_reused, 0);
+
+  KL_Allocation alloc1 = {0};
+  KL_Allocation alloc2 = {0};
+  uint8_t* p1 = kl_allocator_malloc_tracked_aligned(&a, 128, 16, &alloc1);
+  uint8_t* p2 = kl_allocator_malloc_tracked_aligned(&a, 48, 16, &alloc2);
+  KL_TEST_ASSERT(p1 != 0 && p2 != 0, "both allocs succeed");
+
+  kl_allocator_free_allocation(&a, alloc1);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 1);
+
+  uint8_t* p3 = kl_allocator_malloc_aligned(&a, 128, 16);
+  KL_TEST_ASSERT(p3 == p1, "same-size aligned alloc reuses the freed slot");
+  KL_TEST_ASSERT(((uintptr_t)p3 % 16) == 0, "reused pointer keeps alignment");
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 0);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_reused, 1);
+  KL_TEST_EXPECT_EQ_INT(a.pages.length, 1);
+
+  kl_allocator_destroy(&a);
+}
+
+void test_allocator_reuses_freed_slot_before_bump() {
+  // Free/alloc churn must reuse freed slots even while the page still has
+  // bump space, otherwise both bytes_written and the tracked-allocations
+  // list grow without bound. Best-fit: the smallest fitting freed slot wins.
+  KL_Allocator a = {0};
+  kl_allocator_init(&a, (KL_AllocatorConfig){
+    .capacity = 4096,
+    .tracked_allocations_capacity = 8,
+    .track_allocations = true,
+  });
+
+  KL_Allocation big = {0};
+  KL_Allocation small = {0};
+  uint8_t* p_big = kl_allocator_malloc_tracked(&a, 256, &big);
+  uint8_t* p_small = kl_allocator_malloc_tracked(&a, 64, &small);
+  KL_TEST_ASSERT(p_big != 0 && p_small != 0, "both allocs succeed");
+  int64_t bytes_written = a.pages.items[0].bytes_written;
+
+  kl_allocator_free_allocation(&a, big);
+  kl_allocator_free_allocation(&a, small);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 2);
+
+  // Fits both freed slots; best-fit must pick the 64-byte one, not the
+  // 256-byte one and not fresh bump space.
+  uint8_t* p1 = kl_allocator_malloc(&a, 64);
+  KL_TEST_ASSERT(p1 == p_small, "best-fit reuses the smallest fitting slot");
+  uint8_t* p2 = kl_allocator_malloc(&a, 200);
+  KL_TEST_ASSERT(p2 == p_big, "larger request reuses the larger slot");
+
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 0);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_reused, 2);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.length, 2);
+  KL_TEST_EXPECT_EQ_INT((int)a.pages.items[0].bytes_written, (int)bytes_written);
+
+  kl_allocator_destroy(&a);
+}
+
 void test_allocator_save_restore_from_empty() {
   KL_Allocator a = {0};
   kl_allocator_init(&a, (KL_AllocatorConfig){ .capacity = 1024 });

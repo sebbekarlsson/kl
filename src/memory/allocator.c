@@ -96,6 +96,7 @@ int kl_allocator_init(KL_Allocator* allocator, KL_AllocatorConfig cfg) {
   allocator->allocations.items = 0;
   allocator->allocations.n_allocated = 0;
   allocator->allocations.n_freed = 0;
+  allocator->allocations.n_reused = 0;
   allocator->current_capacity = cfg.capacity;
 
   kl_mutex_init(&allocator->lock);
@@ -213,36 +214,58 @@ static inline KL_AllocatorPage* new_page(KL_Allocator* allocator, int64_t size) 
   return p;
 }
 
-static inline KL_AllocatorPage* find_avail_page(KL_Allocator* allocator, int64_t size, int64_t* out_allocation_index) {
+// size is the user-requested size, total_size_needed the bump-allocation
+// footprint (size + alignment slack). Freed-block matching must use the user
+// size: freed records store the user size, so matching against
+// total_size_needed makes a freed block unable to satisfy a new request of
+// the same size whenever alignment > 0.
+//
+// Freed-slot reuse is tried BEFORE bump allocation: a free/alloc churn
+// workload otherwise never reuses while a page has bump space left, so both
+// bytes_written and the tracked-allocations list grow without bound. Best-fit
+// (smallest freed slot that satisfies the request) so a large freed block
+// isn't burned on a tiny request — blocks don't split, the remainder would
+// be lost until the block is freed again.
+static inline KL_AllocatorPage* find_avail_page(KL_Allocator* allocator, int64_t size, size_t alignment, int64_t total_size_needed, int64_t* out_allocation_index) {
   *out_allocation_index = -1;
-  
+
   if (allocator->pages.length <= 0) {
     assert(allocator->pages.items == 0);
-    return new_page(allocator, size);
+    return new_page(allocator, total_size_needed);
   }
 
   assert(allocator->pages.items != 0);
   assert(allocator->pages.length > 0);
 
-  KL_AllocatorPage* first = &allocator->pages.items[0];
-  if (page_fits(first, size)) return first;
-  KL_AllocatorPage* last = &allocator->pages.items[KL_MAX(0, allocator->pages.length-1)];
-  if (page_fits(last, size)) return last;
-
   if (allocator->allocations.n_freed > 0 && allocator->allocations.items != 0 && allocator->allocations.length > 0) {
+    int64_t best = -1;
+    int64_t best_size = 0;
     for (int64_t i = 0; i < allocator->allocations.length; i++) {
       KL_Allocation a = allocator->allocations.items[i];
-      if (a.freed && a.page >= 0 && a.page < allocator->pages.length) {
+      if (a.freed && a.page >= 0 && a.page < allocator->pages.length && a.size >= size) {
         KL_AllocatorPage* page = &allocator->pages.items[a.page];
-        if (page->size >= size && a.size >= size && page->data != 0 && page->index == a.page) {
-          *out_allocation_index = i;
-          return page;
+        if (page->data != 0 && page->index == a.page &&
+            (alignment == 0 || (((uintptr_t)page->data + (uintptr_t)a.offset) & (alignment - 1)) == 0)) {
+          if (best < 0 || a.size < best_size) {
+            best = i;
+            best_size = a.size;
+            if (a.size == size) break;
+          }
         }
-      } 
+      }
+    }
+    if (best >= 0) {
+      *out_allocation_index = best;
+      return &allocator->pages.items[allocator->allocations.items[best].page];
     }
   }
-  
-  return new_page(allocator, size);
+
+  KL_AllocatorPage* first = &allocator->pages.items[0];
+  if (page_fits(first, total_size_needed)) return first;
+  KL_AllocatorPage* last = &allocator->pages.items[KL_MAX(0, allocator->pages.length-1)];
+  if (page_fits(last, total_size_needed)) return last;
+
+  return new_page(allocator, total_size_needed);
 }
 
 static inline uint8_t* find_old_data(KL_Allocator* allocator, KL_Allocation* allocation) {
@@ -264,6 +287,7 @@ static inline uint8_t* reuse_allocation(KL_Allocator* allocator, KL_AllocatorPag
   // again. Removing the entry on reuse would leave the live region untracked.
   slot->freed = false;
   allocator->allocations.n_freed -= 1;
+  allocator->allocations.n_reused += 1;
   if (out != 0) {
     *out = allocation;
   }
@@ -337,7 +361,7 @@ static inline uint8_t* generic_malloc(KL_Allocator* allocator, int64_t size, siz
   size_t total_size_needed = (alignment > 0) ?  (size + alignment - 1 + sizeof(uint8_t)) : (size);
 
   int64_t allocation_index = -1;
-  KL_AllocatorPage* page = find_avail_page(allocator, total_size_needed, &allocation_index);
+  KL_AllocatorPage* page = find_avail_page(allocator, size, alignment, total_size_needed, &allocation_index);
   assert(page != 0);
   assert(page->data != 0);
   
@@ -527,7 +551,7 @@ void kl_allocator_restore(KL_Allocator* allocator, KL_AllocatorMark mark) {
   kl_mutex_unlock(&allocator->lock);
 }
 
-void kl_allocator_print_diagnostics(KL_Allocator* allocator, FILE* fp) {
+void kl_allocator_print_diagnostics(const KL_Allocator* allocator, FILE* fp) {
   assert(allocator->initialized == true);
   assert(fp != 0);
 
@@ -547,4 +571,39 @@ void kl_allocator_print_diagnostics(KL_Allocator* allocator, FILE* fp) {
   fprintf(fp, "allocations.length: %ld\n", allocator->allocations.length);
   fprintf(fp, "allocations.n_allocated: %ld\n", allocator->allocations.n_allocated);
   fprintf(fp, "allocations.n_freed: %ld\n", allocator->allocations.n_freed);
+}
+
+
+void kl_allocator_print_diagnostics_summary(const KL_Allocator* allocator, FILE* fp) {
+  assert(allocator->initialized == true);
+  assert(fp != 0);
+
+  fprintf(fp, "---- allocator diag ----\n");
+  fprintf(fp, "- overview\n");
+  fprintf(fp, "  - current_capacity: %ld\n", allocator->current_capacity);
+  fprintf(fp, "  - config.capacity: %ld\n", allocator->config.capacity);
+  fprintf(fp, "  - config.tracked_allocations_capacity: %ld\n", allocator->config.tracked_allocations_capacity);
+  fprintf(fp, "  - config.track_allocations: %s\n", allocator->config.track_allocations ? "true" : "false");
+  fprintf(fp, "- allocations\n");
+  fprintf(fp, "  - count: %ld\n", allocator->allocations.length);
+  fprintf(fp, "  - n_allocated: %ld\n", allocator->allocations.n_allocated);
+  fprintf(fp, "  - n_freed: %ld\n", allocator->allocations.n_freed);
+  fprintf(fp, "  - n_reused: %ld\n", allocator->allocations.n_reused);
+
+  fprintf(fp, "- pages\n");
+  fprintf(fp, "  - count: %ld\n", allocator->pages.length);
+
+  size_t page_size_sum = 0;
+  size_t bytes_written_sum = 0;
+
+  for (int64_t i = 0; i < allocator->pages.length; i++) {
+    KL_AllocatorPage page = allocator->pages.items[i];
+    page_size_sum += page.size;
+    bytes_written_sum += page.bytes_written;
+  }
+
+  fprintf(fp, "  - page_size_sum: %zu\n", page_size_sum);
+  fprintf(fp, "  - bytes_written_sum: %zu\n", bytes_written_sum);
+
+
 }

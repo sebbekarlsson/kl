@@ -43,6 +43,7 @@ typedef struct KL_ALLOCATOR_STRUCT {
     int64_t length;
     int64_t n_allocated;
     int64_t n_freed;
+    int64_t n_reused;
   } allocations;
 
 } KL_Allocator;
@@ -83,7 +84,9 @@ char* kl_allocator_sprintf(KL_Allocator* allocator, const char* fmt, ...);
 
 int kl_allocator_free_allocation(KL_Allocator* allocator, KL_Allocation allocation);
 
-void kl_allocator_print_diagnostics(KL_Allocator* allocator, FILE* fp);
+void kl_allocator_print_diagnostics(const KL_Allocator* allocator, FILE* fp);
+
+void kl_allocator_print_diagnostics_summary(const KL_Allocator* allocator, FILE* fp);
 
 KL_AllocatorMark kl_allocator_save(KL_Allocator* allocator);
 

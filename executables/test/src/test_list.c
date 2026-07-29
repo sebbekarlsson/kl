@@ -425,6 +425,28 @@ void test_int64_list_with_arena_allocator() {
   kl_allocator_destroy(&a);
 }
 
+void test_int64_list_arena_destroy_frees_allocation() {
+  // With a tracking arena, destroying the list must return its block to the
+  // allocator's freed pool so the space is reusable.
+  KL_Allocator a = {0};
+  kl_allocator_init(&a, (KL_AllocatorConfig){
+    .capacity = 4096,
+    .tracked_allocations_capacity = 8,
+    .track_allocations = true,
+  });
+
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 8, .allocator = &a });
+  for (int i = 0; i < 8; i++) kl_int64_list_push(&list, i);
+  KL_TEST_ASSERT(list.allocation.size > 0, "list has a tracked allocation");
+
+  kl_int64_list_destroy(&list);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 1);
+  KL_TEST_EXPECT_EQ_INT((int)list.allocation.size, 0);
+
+  kl_allocator_destroy(&a);
+}
+
 void test_int64_list_arena_grow_path() {
   // Force the arena realloc-aligned path through repeated growth.
   KL_Allocator a = {0};

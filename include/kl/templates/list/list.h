@@ -64,8 +64,10 @@ This file was automatically generated and must not be modified directly.
       if (list->items != 0) {                                                                    \
         free(list->items);                                                                       \
       }                                                                                          \
+    } else if (list->allocation.size > 0 && list->config.allocator->initialized) {               \
+      kl_allocator_free_allocation(list->config.allocator, list->allocation);                    \
     }                                                                                            \
-                                                                                                 \
+    list->allocation = (KL_Allocation){0};                                                       \
     list->items = 0;                                                                             \
     list->config = (KL_ListConfig){0};                                                           \
     list->length = 0;                                                                            \
