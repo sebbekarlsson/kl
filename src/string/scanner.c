@@ -233,3 +233,30 @@ bool kl_str_scanner_has_alpha(KL_StrScanner* scanner) {
 bool kl_str_scanner_has_alnum(KL_StrScanner* scanner) {
   return scanner->c != 0 && isalnum(scanner->c);
 }
+
+bool kl_str_scanner_get_row_column_at(const KL_StrScanner* scanner, int64_t idx, int64_t* row_out, int64_t* column_out) {
+  if (scanner->str.value == 0 || scanner->str.length <= 0) return false;
+  assert(row_out != 0);
+  assert(column_out != 0);
+
+  int64_t end = KL_MIN(scanner->str.length-1, idx);
+
+  int64_t row = 0;
+  int64_t col = 0;
+  
+  for (int64_t i = 0; i <= end; i++) {
+    char c = scanner->str.value[i];
+
+    if (c == '\n') {
+      row += 1;
+      col = 0;
+    } else {
+      col += 1;
+    }
+  }
+
+  *row_out = row;
+  *column_out = col;
+  
+  return true;
+}

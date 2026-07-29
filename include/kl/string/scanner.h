@@ -83,4 +83,6 @@ bool kl_str_scanner_has_alpha(KL_StrScanner* scanner);
 
 bool kl_str_scanner_has_alnum(KL_StrScanner* scanner);
 
+bool kl_str_scanner_get_row_column_at(const KL_StrScanner* scanner, int64_t idx, int64_t* row_out, int64_t* column_out);
+
 #endif
