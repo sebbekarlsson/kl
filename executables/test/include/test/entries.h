@@ -47,6 +47,7 @@ static const KL_TestEntry TEST_ENTRIES[] = {
   KL_TEST_ENTRY(test_allocator_free_zeros_memory_and_reuses_slot),
   KL_TEST_ENTRY(test_allocator_free_reuses_slot_aligned),
   KL_TEST_ENTRY(test_allocator_reuses_freed_slot_before_bump),
+  KL_TEST_ENTRY(test_allocator_reused_handle_can_be_freed),
   KL_TEST_ENTRY(test_allocator_save_restore_from_empty),
   KL_TEST_ENTRY(test_allocator_save_restore_preserves_prior_data),
   KL_TEST_ENTRY(test_allocator_save_restore_drops_new_pages),

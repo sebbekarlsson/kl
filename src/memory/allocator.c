@@ -63,11 +63,14 @@ static inline void add_allocation(KL_Allocator* allocator, KL_Allocation allocat
 
 static inline int free_allocation(KL_Allocator* allocator, KL_Allocation allocation) {
   if (allocator->allocations.items == 0 || allocator->allocations.n_allocated <= 0 || allocator->allocations.length <= 0) return 0;
-  if (allocation.freed || allocation.size <= 0) return 0;
+  if (allocation.size <= 0) return 0;
 
   for (int64_t i = 0; i < allocator->allocations.length; i++) {
     KL_Allocation* a = &allocator->allocations.items[i];
     if (a->page == allocation.page && a->offset == allocation.offset && a->size == allocation.size) {
+      // The slot's freed flag is the source of truth, not the caller's copy:
+      // a stale handle must neither double-free nor block a legitimate free.
+      if (a->freed) return 0;
       a->freed = true;
 
       if (a->size > 0 && a->page >= 0 && a->page < allocator->pages.length && allocator->pages.items != 0) {
@@ -281,11 +284,14 @@ static inline uint8_t* reuse_allocation(KL_Allocator* allocator, KL_AllocatorPag
   KL_Allocation* slot = &allocator->allocations.items[allocation_index];
   assert(slot->offset >= 0);
   assert(slot->offset < page->size);
-  KL_Allocation allocation = *slot;
-  uint8_t* data = &page->data[allocation.offset];
   // Resurrect the slot in place so kl_allocator_free_allocation can find it
   // again. Removing the entry on reuse would leave the live region untracked.
+  // Clear freed BEFORE copying into the caller's handle: a handle carrying
+  // freed=true would make the next free_allocation reject it and leak the
+  // block as live forever.
   slot->freed = false;
+  KL_Allocation allocation = *slot;
+  uint8_t* data = &page->data[allocation.offset];
   allocator->allocations.n_freed -= 1;
   allocator->allocations.n_reused += 1;
   if (out != 0) {

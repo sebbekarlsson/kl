@@ -90,6 +90,7 @@ void test_allocator_tracked_malloc_records_allocations();
 void test_allocator_free_zeros_memory_and_reuses_slot();
 void test_allocator_free_reuses_slot_aligned();
 void test_allocator_reuses_freed_slot_before_bump();
+void test_allocator_reused_handle_can_be_freed();
 void test_allocator_save_restore_from_empty();
 void test_allocator_save_restore_preserves_prior_data();
 void test_allocator_save_restore_drops_new_pages();

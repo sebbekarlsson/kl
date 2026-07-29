@@ -379,6 +379,39 @@ void test_allocator_reuses_freed_slot_before_bump() {
   kl_allocator_destroy(&a);
 }
 
+void test_allocator_reused_handle_can_be_freed() {
+  // A handle returned by the reuse path must be freeable again. Copying the
+  // slot into the caller's handle before clearing its freed flag poisons the
+  // handle: the next free is rejected, the block leaks as live, and a steady
+  // free/alloc churn (per-frame text updates) grows the tracking list and
+  // bytes_written forever while n_freed stays pinned.
+  KL_Allocator a = {0};
+  kl_allocator_init(&a, (KL_AllocatorConfig){
+    .capacity = 4096,
+    .tracked_allocations_capacity = 8,
+    .track_allocations = true,
+  });
+
+  KL_Allocation alloc = {0};
+  uint8_t* p0 = kl_allocator_malloc_tracked(&a, 128, &alloc);
+  KL_TEST_ASSERT(p0 != 0, "initial alloc succeeds");
+
+  for (int i = 0; i < 32; i++) {
+    kl_allocator_free_allocation(&a, alloc);
+    KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 1);
+    uint8_t* p = kl_allocator_malloc_tracked(&a, 128, &alloc);
+    KL_TEST_ASSERT(p == p0, "every cycle reuses the same block");
+    KL_TEST_ASSERT(alloc.freed == false, "returned handle is not poisoned");
+    KL_TEST_EXPECT_EQ_INT(a.allocations.n_freed, 0);
+  }
+
+  KL_TEST_EXPECT_EQ_INT(a.allocations.n_reused, 32);
+  KL_TEST_EXPECT_EQ_INT(a.allocations.length, 1);
+  KL_TEST_EXPECT_EQ_INT(a.pages.length, 1);
+
+  kl_allocator_destroy(&a);
+}
+
 void test_allocator_save_restore_from_empty() {
   KL_Allocator a = {0};
   kl_allocator_init(&a, (KL_AllocatorConfig){ .capacity = 1024 });
