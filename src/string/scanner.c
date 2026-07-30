@@ -12,6 +12,7 @@ bool kl_str_scanner_init(KL_StrScanner* scanner, KL_StrConst str) {
   scanner->str = str;
   scanner->i = 0;
   scanner->c = str.value[scanner->i++];
+  scanner->restore.is_set = false;
   scanner->initialized = true;
   return true;
 }
@@ -259,4 +260,21 @@ bool kl_str_scanner_get_row_column_at(const KL_StrScanner* scanner, int64_t idx,
   *column_out = col;
   
   return true;
+}
+
+void kl_str_scanner_save(KL_StrScanner* scanner) {
+  assert(scanner->initialized);
+  scanner->restore.c = scanner->c;
+  scanner->restore.i = scanner->i;
+  scanner->restore.is_set = true;
+}
+
+void kl_str_scanner_restore(KL_StrScanner* scanner) {
+  assert(scanner->initialized);
+  
+  if (!scanner->restore.is_set) return;
+
+  scanner->c = scanner->restore.c;
+  scanner->i = scanner->restore.i;
+  scanner->restore.is_set = false;
 }

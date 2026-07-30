@@ -10,6 +10,12 @@ typedef struct {
   KL_StrConst str;
   int64_t i;
   char c;
+
+  struct {
+    bool is_set;
+    int64_t i;
+    char c;
+  } restore;
 } KL_StrScanner;
 
 
@@ -84,5 +90,9 @@ bool kl_str_scanner_has_alpha(KL_StrScanner* scanner);
 bool kl_str_scanner_has_alnum(KL_StrScanner* scanner);
 
 bool kl_str_scanner_get_row_column_at(const KL_StrScanner* scanner, int64_t idx, int64_t* row_out, int64_t* column_out);
+
+void kl_str_scanner_save(KL_StrScanner* scanner);
+
+void kl_str_scanner_restore(KL_StrScanner* scanner);
 
 #endif

@@ -61,7 +61,9 @@ bool kl_fs_read_text_file_into_buffer(KL_StrConst filepath, KL_StrBuffer* out) {
   assert(out->data != 0);
   assert(out->capacity >= (len + 1));
 
-  fread(&out->data[0], sizeof(char), len, fp);
+  int64_t n = (int64_t)fread(&out->data[0], sizeof(char), len, fp);
+  out->length = n;
+  out->data[n] = '\0';
 
   fclose(fp);
   fp = 0;
