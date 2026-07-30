@@ -141,6 +141,12 @@ if __name__ == '__main__':
     generate_type(
         includes=['#include <stdint.h>'],
         template_name='list',
+        typename='uint64_t',
+        name='uint64'
+    )
+    generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='list',
         typename='uint32_t',
         name='uint32'
     )
