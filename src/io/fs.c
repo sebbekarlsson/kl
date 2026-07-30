@@ -39,6 +39,37 @@ bool kl_fs_read_text_file(KL_StrConst filepath, KL_Str* out) {
   return true;
 }
 
+bool kl_fs_read_text_file_into_buffer(KL_StrConst filepath, KL_StrBuffer* out) {
+  assert(filepath.value != 0);
+  assert(filepath.length > 0);
+  assert(out != 0);
+  
+  FILE* fp = fopen(filepath.value, "r");
+  if (fp == 0) return false;
+
+  int64_t len = 0;
+  fseek(fp, 0, SEEK_END);
+  len = ftell(fp);
+  rewind(fp);
+
+  if (!kl_str_buffer_fit(out, len + 1)) {
+    fclose(fp);
+    fp = 0;
+    return false;
+  }
+
+  assert(out->data != 0);
+  assert(out->capacity >= (len + 1));
+
+  fread(&out->data[0], sizeof(char), len, fp);
+
+  fclose(fp);
+  fp = 0;
+
+
+  return true;
+}
+
 bool kl_fs_write_text_file(KL_StrConst filepath, KL_StrConst content) {
   assert(filepath.value != 0);
   assert(filepath.length > 0);

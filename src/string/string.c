@@ -233,7 +233,7 @@ KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrCons
   return (KL_StrConst){ .value = buffer->data, .length = buffer->length };
 }
 
-static inline bool kl_str_buffer_fit(KL_StrBuffer* buff, int64_t extra) {
+bool kl_str_buffer_fit(KL_StrBuffer* buff, int64_t extra) {
   if (buff->allocator == 0) return false;
   if (extra <= 0) return false;
 
