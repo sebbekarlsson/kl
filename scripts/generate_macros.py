@@ -151,6 +151,12 @@ if __name__ == '__main__':
         name='uint32'
     )
     generate_type(
+        includes=['#include <stdint.h>'],
+        template_name='list',
+        typename='uint8_t',
+        name='uint8'
+    )
+    generate_type(
         includes=[],
         template_name='list',
         typename='float',
