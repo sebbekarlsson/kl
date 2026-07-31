@@ -2,5 +2,6 @@
 #define KL_X__SHARED_H
 
 typedef int T_X;
+typedef int T_Y;
 
 #endif

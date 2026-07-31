@@ -46,6 +46,7 @@ def process(src_path: str):
     content = re.sub(r'NAME', r'##NAME##', content)
     content = content.replace('(##NAME##', '(NAME##')#re.sub(r'\(NAME', '(NAME##', content) 
     content = re.sub(r'T_X', r'T', content)
+    content = re.sub(r'T_Y', r'U', content)
     content = re.sub(r'(\s?.*?//.*?)(\n)', r'\2', content)
     
     return content, list(map(lambda xab: strip(content0[xab.start():xab.end()]), includes)), list(map(lambda xab: strip(content0[xab.start():xab.end()]), tops)) 
@@ -287,7 +288,16 @@ if __name__ == '__main__':
     
 
 
-    # ringbuffer 
+    # eventbus (two type params: T = event type enum, U = payload)
+    generate(
+        before_head=f'#define {PREFIX}DEFINE_EVENTBUS(NAME, T, U)\n',
+        header_path=f'./include/{NAME}/templates/eventbus/dummy.h',
+        before_impl=f'#define {PREFIX}IMPL_EVENTBUS(NAME, T, U)\n',
+        impl_path=f'./src/templates/eventbus/dummy.c',
+        outpath=f'./include/{NAME}/templates/eventbus/eventbus.h'
+    )
+
+    # ringbuffer
     generate(
         before_head=f'#define {PREFIX}DEFINE_RINGBUFFER(NAME, T)\n',
         header_path=f'./include/{NAME}/templates/ringbuffer/dummy.h',

@@ -28,6 +28,7 @@
 #include <kl/templates/sparse_set/binary_sparse_set.h>
 #include <kl/templates/sparse_set/dummy.h>
 #include <kl/templates/ringbuffer/f32_ringbuffer.h>
+#include <kl/templates/eventbus/eventbus.h>
 #include <kl/binary/blob.h>
 #include <kl/binary/serial.h>
 #include <kl/io/fs.h>
@@ -324,6 +325,24 @@ void test_binary_pool_handle_rejects_recycled_slot();
 void test_binary_pool_handle_stale_release_is_noop();
 void test_binary_pool_handle_invalid_after_reset();
 void test_binary_pool_handle_generation_wraps();
+
+/* ===================== eventbus (test_eventbus.c) ===================== */
+void test_eventbus_init_destroy();
+void test_eventbus_double_init_is_noop();
+void test_eventbus_emit_without_subscribers_is_safe();
+void test_eventbus_sub_emit_dispatches_payload();
+void test_eventbus_emit_only_reaches_matching_type();
+void test_eventbus_multiple_listeners_all_called();
+void test_eventbus_sub_all_receives_every_type();
+void test_eventbus_stop_signal_halts_dispatch();
+void test_eventbus_unsub_stops_delivery();
+void test_eventbus_unsub_global_stops_delivery();
+void test_eventbus_unsub_stale_id_is_noop();
+void test_eventbus_sub_exhausted_returns_negative();
+void test_eventbus_unsub_deferred_inside_callback();
+void test_eventbus_unsub_deferred_outside_emit_is_immediate();
+void test_eventbus_unsub_deferred_double_queue_is_noop();
+void test_eventbus_unsub_then_resub_reuses_slot();
 
 /* ===================== vec2 (test_vec.c) ===================== */
 void test_vec2_constructors();
