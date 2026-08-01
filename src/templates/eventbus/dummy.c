@@ -76,7 +76,7 @@ static inline void kl_NAME_eventbus_flush_pending_unsubs_(KL_NAME_EventBus* bus)
   }
 }
 
-void kl_NAME_eventbus_emit(KL_NAME_EventBus* bus, const KL_NAME_EventBusEvent* event) {
+KL_EventBusSignal kl_NAME_eventbus_emit(KL_NAME_EventBus* bus, const KL_NAME_EventBusEvent* event) {
   assert(bus->initialized);
   assert(event != 0);
 
@@ -97,6 +97,8 @@ void kl_NAME_eventbus_emit(KL_NAME_EventBus* bus, const KL_NAME_EventBusEvent* e
   if (bus->emit_depth == 0) {
     kl_NAME_eventbus_flush_pending_unsubs_(bus);
   }
+
+  return signal;
 }
 
 static inline int64_t kl_NAME_eventbus_sub_(KL_NAME_EventBus* bus, T_X event_type, bool is_global, KL_NAME_EventBusListener listener) {

@@ -54,7 +54,7 @@ void kl_NAME_eventbus_init(KL_NAME_EventBus* bus, KL_EventBusConfig cfg);
 
 void kl_NAME_eventbus_destroy(KL_NAME_EventBus* bus);
 
-void kl_NAME_eventbus_emit(KL_NAME_EventBus* bus, const KL_NAME_EventBusEvent* event);
+ KL_EventBusSignal kl_NAME_eventbus_emit(KL_NAME_EventBus* bus, const KL_NAME_EventBusEvent* event);
 
 // returns the subscriber id
 int64_t kl_NAME_eventbus_sub(KL_NAME_EventBus* bus, T_X event_type, KL_NAME_EventBusListener listener);

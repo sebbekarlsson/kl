@@ -53,7 +53,7 @@ This file was automatically generated and must not be modified directly.
   } KL_##NAME##_EventBus;                                                                                                     \
   void kl_##NAME##_eventbus_init(KL_##NAME##_EventBus* bus, KL_EventBusConfig cfg);                                           \
   void kl_##NAME##_eventbus_destroy(KL_##NAME##_EventBus* bus);                                                               \
-  void kl_##NAME##_eventbus_emit(KL_##NAME##_EventBus* bus, const KL_##NAME##_EventBusEvent* event);                          \
+   KL_EventBusSignal kl_##NAME##_eventbus_emit(KL_##NAME##_EventBus* bus, const KL_##NAME##_EventBusEvent* event);            \
   int64_t kl_##NAME##_eventbus_sub(KL_##NAME##_EventBus* bus, T event_type, KL_##NAME##_EventBusListener listener);           \
   int64_t kl_##NAME##_eventbus_sub_all(KL_##NAME##_EventBus* bus, KL_##NAME##_EventBusListener listener);                     \
   void kl_##NAME##_eventbus_unsub(KL_##NAME##_EventBus* bus, int64_t sub_id);                                                 \
@@ -123,7 +123,7 @@ This file was automatically generated and must not be modified directly.
       kl_##NAME##_eventbus_unsub(bus, sub_id);                                                                                                                           \
     }                                                                                                                                                                    \
   }                                                                                                                                                                      \
-  void kl_##NAME##_eventbus_emit(KL_##NAME##_EventBus* bus, const KL_##NAME##_EventBusEvent* event) {                                                                    \
+  KL_EventBusSignal kl_##NAME##_eventbus_emit(KL_##NAME##_EventBus* bus, const KL_##NAME##_EventBusEvent* event) {                                                       \
     assert(bus->initialized);                                                                                                                                            \
     assert(event != 0);                                                                                                                                                  \
     bus->emit_depth += 1;                                                                                                                                                \
@@ -141,6 +141,7 @@ This file was automatically generated and must not be modified directly.
     if (bus->emit_depth == 0) {                                                                                                                                          \
       kl_##NAME##_eventbus_flush_pending_unsubs_(bus);                                                                                                                   \
     }                                                                                                                                                                    \
+    return signal;                                                                                                                                                       \
   }                                                                                                                                                                      \
   static inline int64_t kl_##NAME##_eventbus_sub_(KL_##NAME##_EventBus* bus, T event_type, bool is_global, KL_##NAME##_EventBusListener listener) {                      \
     assert(bus->initialized);                                                                                                                                            \
