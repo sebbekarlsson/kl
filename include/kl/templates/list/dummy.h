@@ -36,6 +36,10 @@ int kl_NAME_list_pop_at(KL_NAME_List* list, int64_t idx, T_X* out);
 
 int kl_NAME_list_pop_unordered_at(KL_NAME_List* list, int64_t idx, T_X* out);
 
+bool kl_NAME_list_remove(KL_NAME_List* list, T_X item);
+
+bool kl_NAME_list_remove_unordered(KL_NAME_List* list, T_X item);
+
 void kl_NAME_list_grow(KL_NAME_List *list, int64_t n_slots);
 
 void kl_NAME_list_concat(KL_NAME_List *list, const KL_NAME_List *other);

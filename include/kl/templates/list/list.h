@@ -37,6 +37,8 @@ This file was automatically generated and must not be modified directly.
   int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                             \
   int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);             \
   int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out);   \
+  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item);                         \
+  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item);               \
   void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);                  \
   void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other);  \
   bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);                       \
@@ -181,6 +183,18 @@ This file was automatically generated and must not be modified directly.
     list->items[idx] = list->items[list->length-1];                                              \
     list->length -= 1;                                                                           \
     return 1;                                                                                    \
+  }                                                                                              \
+  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item) {                                 \
+    assert(list->initialized);                                                                   \
+    int64_t idx = kl_##NAME##_list_index_of(list, item);                                         \
+    if (idx < 0) return false;                                                                   \
+    return kl_##NAME##_list_pop_at(list, idx, 0) != 0;                                           \
+  }                                                                                              \
+  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item) {                       \
+    assert(list->initialized);                                                                   \
+    int64_t idx = kl_##NAME##_list_index_of(list, item);                                         \
+    if (idx < 0) return false;                                                                   \
+    return kl_##NAME##_list_pop_unordered_at(list, idx, 0) != 0;                                 \
   }                                                                                              \
   bool kl_##NAME##_list_includes(KL_##NAME##_List *list, T item) {                               \
     if (list == 0 || list->items == 0 || list->length <= 0)                                      \

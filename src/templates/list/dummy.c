@@ -183,6 +183,22 @@ int kl_NAME_list_pop_unordered_at(KL_NAME_List* list, int64_t idx, T_X* out) {
   return 1;
 }
 
+
+bool kl_NAME_list_remove(KL_NAME_List* list, T_X item) {
+  assert(list->initialized);
+  int64_t idx = kl_NAME_list_index_of(list, item);
+  if (idx < 0) return false;
+  return kl_NAME_list_pop_at(list, idx, 0) != 0;
+}
+
+
+bool kl_NAME_list_remove_unordered(KL_NAME_List* list, T_X item) {
+  assert(list->initialized);
+  int64_t idx = kl_NAME_list_index_of(list, item);
+  if (idx < 0) return false;
+  return kl_NAME_list_pop_unordered_at(list, idx, 0) != 0;
+}
+
 bool kl_NAME_list_includes(KL_NAME_List *list, T_X item) {
   if (list == 0 || list->items == 0 || list->length <= 0)
     return false;
