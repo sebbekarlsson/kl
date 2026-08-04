@@ -20,8 +20,77 @@
 
 static inline int64_t alignup(int64_t x, int64_t alignment)  { return (x + alignment) & ~alignment; }
 
+// floor(log2(size)) — the bucket a freed slot of this size lives in.
+static inline int size_class_floor(int64_t size) {
+  assert(size > 0);
+  return 63 - __builtin_clzll((uint64_t)size);
+}
+
+// How far into the request's own (floor) size class to search before giving
+// up on it. That class mixes slots smaller and larger than the request —
+// unlike every higher class, where the first valid slot always fits — so an
+// unbounded walk there could degenerate; a small cap keeps take() O(1) while
+// still catching the dominant exact-size-reuse case.
+#define KL_ALLOCATOR_FLOOR_CLASS_SCAN_CAP 64
+
+static inline void free_list_reset(KL_Allocator* allocator) {
+  for (int i = 0; i < KL_ALLOCATOR_SIZE_CLASS_COUNT; i++) {
+    allocator->allocations.free_heads[i] = -1;
+  }
+}
+
+static inline void free_list_push(KL_Allocator* allocator, int64_t slot_index) {
+  KL_Allocation* a = &allocator->allocations.items[slot_index];
+  assert(a->freed);
+  int c = size_class_floor(a->size);
+  a->next_free = allocator->allocations.free_heads[c];
+  allocator->allocations.free_heads[c] = slot_index;
+}
+
+// Pop the first freed slot that satisfies (size, alignment, valid page),
+// searching the ceiling size class upward. Returns the slot index or -1.
+// First-fit within a class keeps a hit within 2x of the request, matching
+// the fragmentation behavior of the old O(n) best-fit scan.
+static inline int64_t free_list_take(KL_Allocator* allocator, int64_t size, size_t alignment) {
+  if (allocator->allocations.items == 0 || allocator->allocations.length <= 0) return -1;
+
+  // Start at the request's own (floor) class: it holds every freed slot of
+  // similar size, including exact fits — the dominant reuse case for churny
+  // same-shape workloads. Slots there may be smaller than the request (the
+  // size check below filters); in every higher class the first valid slot is
+  // guaranteed to fit.
+  int floor_class = size_class_floor(size);
+  for (int c = floor_class; c < KL_ALLOCATOR_SIZE_CLASS_COUNT; c++) {
+    int64_t scanned = 0;
+    int64_t prev = -1;
+    int64_t idx = allocator->allocations.free_heads[c];
+    while (idx >= 0) {
+      if (c == floor_class && scanned++ >= KL_ALLOCATOR_FLOOR_CLASS_SCAN_CAP) break;
+      KL_Allocation* a = &allocator->allocations.items[idx];
+      assert(a->freed);
+      if (a->page >= 0 && a->page < allocator->pages.length && a->size >= size) {
+        KL_AllocatorPage* page = &allocator->pages.items[a->page];
+        if (page->data != 0 && page->index == a->page &&
+            (alignment == 0 || (((uintptr_t)page->data + (uintptr_t)a->offset) & (alignment - 1)) == 0)) {
+          // Unlink; the caller resurrects the slot via reuse_allocation.
+          if (prev < 0) allocator->allocations.free_heads[c] = a->next_free;
+          else allocator->allocations.items[prev].next_free = a->next_free;
+          a->next_free = -1;
+          return idx;
+        }
+      }
+      prev = idx;
+      idx = a->next_free;
+    }
+  }
+
+  return -1;
+}
+
 static inline void add_allocation(KL_Allocator* allocator, KL_Allocation allocation) {
   allocation.freed = false;
+  allocation.next_free = -1;
+  assert(allocation.tracked_index == allocator->allocations.length);
   int64_t avail = allocator->allocations.n_allocated - allocator->allocations.length;
   if (avail <= 0 || allocator->allocations.n_allocated <= 0) {
     allocator->allocations.items = (KL_Allocation*)realloc(allocator->allocations.items, (allocator->allocations.n_allocated + allocator->config.tracked_allocations_capacity) * sizeof(KL_Allocation));
@@ -65,25 +134,46 @@ static inline int free_allocation(KL_Allocator* allocator, KL_Allocation allocat
   if (allocator->allocations.items == 0 || allocator->allocations.n_allocated <= 0 || allocator->allocations.length <= 0) return 0;
   if (allocation.size <= 0) return 0;
 
-  for (int64_t i = 0; i < allocator->allocations.length; i++) {
-    KL_Allocation* a = &allocator->allocations.items[i];
-    if (a->page == allocation.page && a->offset == allocation.offset && a->size == allocation.size) {
-      // The slot's freed flag is the source of truth, not the caller's copy:
-      // a stale handle must neither double-free nor block a legitimate free.
-      if (a->freed) return 0;
-      a->freed = true;
-
-      if (a->size > 0 && a->page >= 0 && a->page < allocator->pages.length && allocator->pages.items != 0) {
-        KL_AllocatorPage* page = &allocator->pages.items[a->page];
-        if (page->index == a->page && page->data != 0 && page->size >= a->size && a->offset < page->size) {
-          memset(&page->data[a->offset], 0, a->size);
-        }
-      }
-      return 1;
+  // O(1): the handle carries its slot index; the (page, offset, size) match
+  // guards against stale handles (e.g. copies that predate a restore()).
+  KL_Allocation* a = 0;
+  int64_t idx = allocation.tracked_index;
+  if (idx >= 0 && idx < allocator->allocations.length) {
+    KL_Allocation* cand = &allocator->allocations.items[idx];
+    if (cand->page == allocation.page && cand->offset == allocation.offset && cand->size == allocation.size) {
+      a = cand;
     }
   }
 
-  return 0;
+  // Fallback for handles without a valid index (zero-initialized or
+  // pre-tracking structs) — rare, so the scan cost doesn't matter.
+  if (a == 0) {
+    for (int64_t i = 0; i < allocator->allocations.length; i++) {
+      KL_Allocation* cand = &allocator->allocations.items[i];
+      if (cand->page == allocation.page && cand->offset == allocation.offset && cand->size == allocation.size) {
+        a = cand;
+        idx = i;
+        break;
+      }
+    }
+  }
+
+  if (a == 0) return 0;
+
+  // The slot's freed flag is the source of truth, not the caller's copy:
+  // a stale handle must neither double-free nor block a legitimate free.
+  if (a->freed) return 0;
+  a->freed = true;
+
+  if (a->size > 0 && a->page >= 0 && a->page < allocator->pages.length && allocator->pages.items != 0) {
+    KL_AllocatorPage* page = &allocator->pages.items[a->page];
+    if (page->index == a->page && page->data != 0 && page->size >= a->size && a->offset < page->size) {
+      memset(&page->data[a->offset], 0, a->size);
+    }
+  }
+
+  free_list_push(allocator, idx);
+  return 1;
 }
 
 
@@ -100,6 +190,7 @@ int kl_allocator_init(KL_Allocator* allocator, KL_AllocatorConfig cfg) {
   allocator->allocations.n_allocated = 0;
   allocator->allocations.n_freed = 0;
   allocator->allocations.n_reused = 0;
+  free_list_reset(allocator);
   allocator->current_capacity = cfg.capacity;
 
   kl_mutex_init(&allocator->lock);
@@ -157,6 +248,8 @@ void kl_allocator_destroy_all_pages(KL_Allocator* allocator) {
   allocator->allocations.items = 0;
   allocator->allocations.n_allocated = 0;
   allocator->allocations.length = 0;
+  allocator->allocations.n_freed = 0;
+  free_list_reset(allocator);
   kl_mutex_unlock(&allocator->lock);
 }
 
@@ -181,6 +274,8 @@ void kl_allocator_reset(KL_Allocator* allocator) {
   }
 
   allocator->allocations.length = 0;
+  allocator->allocations.n_freed = 0;
+  free_list_reset(allocator);
 }
 
 void kl_allocator_lock(KL_Allocator* allocator) {
@@ -225,10 +320,11 @@ static inline KL_AllocatorPage* new_page(KL_Allocator* allocator, int64_t size) 
 //
 // Freed-slot reuse is tried BEFORE bump allocation: a free/alloc churn
 // workload otherwise never reuses while a page has bump space left, so both
-// bytes_written and the tracked-allocations list grow without bound. Best-fit
-// (smallest freed slot that satisfies the request) so a large freed block
-// isn't burned on a tiny request — blocks don't split, the remainder would
-// be lost until the block is freed again.
+// bytes_written and the tracked-allocations list grow without bound. Reuse
+// pops from the per-size-class freed lists (see free_list_take) — a hit is
+// always within 2x of the request, so a large freed block isn't burned on a
+// tiny one; blocks don't split, the remainder would be lost until the block
+// is freed again.
 static inline KL_AllocatorPage* find_avail_page(KL_Allocator* allocator, int64_t size, size_t alignment, int64_t total_size_needed, int64_t* out_allocation_index) {
   *out_allocation_index = -1;
 
@@ -240,26 +336,11 @@ static inline KL_AllocatorPage* find_avail_page(KL_Allocator* allocator, int64_t
   assert(allocator->pages.items != 0);
   assert(allocator->pages.length > 0);
 
-  if (allocator->allocations.n_freed > 0 && allocator->allocations.items != 0 && allocator->allocations.length > 0) {
-    int64_t best = -1;
-    int64_t best_size = 0;
-    for (int64_t i = 0; i < allocator->allocations.length; i++) {
-      KL_Allocation a = allocator->allocations.items[i];
-      if (a.freed && a.page >= 0 && a.page < allocator->pages.length && a.size >= size) {
-        KL_AllocatorPage* page = &allocator->pages.items[a.page];
-        if (page->data != 0 && page->index == a.page &&
-            (alignment == 0 || (((uintptr_t)page->data + (uintptr_t)a.offset) & (alignment - 1)) == 0)) {
-          if (best < 0 || a.size < best_size) {
-            best = i;
-            best_size = a.size;
-            if (a.size == size) break;
-          }
-        }
-      }
-    }
-    if (best >= 0) {
-      *out_allocation_index = best;
-      return &allocator->pages.items[allocator->allocations.items[best].page];
+  if (allocator->allocations.n_freed > 0) {
+    int64_t taken = free_list_take(allocator, size, alignment);
+    if (taken >= 0) {
+      *out_allocation_index = taken;
+      return &allocator->pages.items[allocator->allocations.items[taken].page];
     }
   }
 
@@ -310,8 +391,11 @@ static inline uint8_t* page_alloc(KL_Allocator* allocator, KL_AllocatorPage* pag
   allocation.offset = offset;
   allocation.size = size;
   allocation.page = page->index;
-  
+  allocation.tracked_index = -1;
+  allocation.next_free = -1;
+
   if (!is_realloc && allocator->config.track_allocations) {
+    allocation.tracked_index = allocator->allocations.length;
     add_allocation(allocator, allocation);
   }
 
@@ -345,8 +429,11 @@ static inline uint8_t* page_alloc_aligned(KL_Allocator* allocator, KL_AllocatorP
   allocation.size = size;
   allocation.page = page->index;
   allocation.alignment = alignment;
+  allocation.tracked_index = -1;
+  allocation.next_free = -1;
 
   if (!is_realloc && allocator->config.track_allocations) {
+    allocation.tracked_index = allocator->allocations.length;
     add_allocation(allocator, allocation);
   }
 
@@ -541,6 +628,18 @@ void kl_allocator_restore(KL_Allocator* allocator, KL_AllocatorMark mark) {
 
   allocator->pages.length = mark.pages_length;
   allocator->allocations.length = mark.allocations_length;
+
+  // Truncating the slot array invalidates any freed-list links pointing at
+  // (or through) removed slots — rebuild the lists from the surviving slots
+  // and recount n_freed to match.
+  free_list_reset(allocator);
+  allocator->allocations.n_freed = 0;
+  for (int64_t i = 0; i < allocator->allocations.length; i++) {
+    if (allocator->allocations.items[i].freed) {
+      free_list_push(allocator, i);
+      allocator->allocations.n_freed += 1;
+    }
+  }
 
   // Maintain the invariant new_page()/find_avail_page() rely on (and that
   // destroy/destroy_all_pages uphold): an empty page list has a NULL backing

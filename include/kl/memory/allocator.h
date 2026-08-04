@@ -25,7 +25,22 @@ typedef struct {
   int64_t size;
   size_t alignment;
   bool freed;
+  // Index of this allocation's slot in the allocator's tracked array, carried
+  // in every handle so free is an O(1) validated lookup instead of a scan.
+  // -1 when the allocator doesn't track allocations.
+  int64_t tracked_index;
+  // Intrusive freed-list link (index of the next freed slot in the same size
+  // class, -1 = end). Only meaningful on the allocator's own slot entries
+  // while freed; junk on caller-held handle copies.
+  int64_t next_free;
 } KL_Allocation;
+
+// Freed slots are kept in power-of-two size-class buckets (bucket i holds
+// slots with 2^i <= size < 2^(i+1)), linked through KL_Allocation.next_free.
+// Allocation pops from the ceiling class upward, so a reused block is always
+// within 2x of the request — the same fragmentation guarantee the old
+// best-fit scan gave, without the O(n) walk.
+#define KL_ALLOCATOR_SIZE_CLASS_COUNT 64
 
 typedef struct KL_ALLOCATOR_STRUCT {
   KL_Mutex lock;
@@ -44,6 +59,9 @@ typedef struct KL_ALLOCATOR_STRUCT {
     int64_t n_allocated;
     int64_t n_freed;
     int64_t n_reused;
+    // Heads of the per-size-class freed-slot lists (indices into items,
+    // -1 = empty). See KL_ALLOCATOR_SIZE_CLASS_COUNT.
+    int64_t free_heads[KL_ALLOCATOR_SIZE_CLASS_COUNT];
   } allocations;
 
 } KL_Allocator;
