@@ -33,6 +33,7 @@ To author a *new* container family, mirror the existing structure: `dummy.h`/`du
 ## Source layout
 
 - `src/` + `include/kl/` — library code, mirrored layout. Subareas: `memory/` (arena `KL_Allocator` in `allocator.{h,c}` plus `alloc.{h,c}`), `string/`, `threads/` (`KL_Mutex`), `binary/` (header-only `KL_Blob`), `templates/` (see above).
+  - `KL_Allocator` free-memory semantics: with `config.track_allocations` **off** (the default), `kl_allocator_free_allocation` is a no-op — freed regions are never reused and pages only die at destroy, so alloc/free churn grows the arena without bound. With tracking **on**, frees and reuse are ~O(1): handles carry their tracked-slot index (`KL_Allocation.tracked_index`) and freed slots live in per-size-class free lists (`free_heads[]` + intrusive `next_free`); a reused block is always within 2× of the request. Rule of thumb: arena-without-tracking for build-once data, tracking for high-churn workloads (e.g. g3's BSP build).
 - `executables/<name>/{src,include}/` — programs that link against `libkl.a`.
 - `scripts/` — Python tooling; has its own `pyproject.toml` (uv-managed, Python ≥ 3.13).
 
