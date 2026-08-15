@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 
-bool kl_cli_find_arg(int argc, char* argv[], KL_StrConst key, KL_StrConst* out);
+bool kl_cli_find_arg(int argc, const char* argv[], KL_StrConst key, KL_StrConst* out);
 
 KL_StrConst kl_cli_get_arg(int argc, char* argv[], KL_StrConst key, bool required);
 

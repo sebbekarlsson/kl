@@ -26,7 +26,7 @@ static KL_StrConst kl_cli_unquote(KL_StrConst str) {
 
 KL_StrConst kl_cli_get_arg(int argc, char* argv[], KL_StrConst key, bool required) {
   KL_StrConst found = {0};
-  if (kl_cli_find_arg(argc, argv, key, &found)) return found;
+  if (kl_cli_find_arg(argc, (const char**)argv, key, &found)) return found;
 
   if (required) {
     fprintf(stderr, "Missing required argument: %s\n", key.value);
@@ -37,7 +37,7 @@ KL_StrConst kl_cli_get_arg(int argc, char* argv[], KL_StrConst key, bool require
 }
 
 
-bool kl_cli_find_arg(int argc, char* argv[], KL_StrConst key, KL_StrConst* out) {
+bool kl_cli_find_arg(int argc, const char* argv[], KL_StrConst key, KL_StrConst* out) {
   KL_StrConst ckey = kl_str_const_remove_prefix(key, KL_STR_CONST_LIT("--"));
   ckey = kl_str_const_remove_prefix(ckey, KL_STR_CONST_LIT("-"));
 
