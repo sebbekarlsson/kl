@@ -620,3 +620,144 @@ void test_int64_list_pop_at_drains_from_front() {
 
   kl_int64_list_destroy(&list);
 }
+
+void test_int64_list_splice_insert_middle() {
+  // to_remove == 0: pure insertion, like JS splice(index, 0, item).
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 5; i++) kl_int64_list_push(&list, i * 10);
+
+  kl_int64_list_splice(&list, 2, 0, 99);
+  KL_TEST_EXPECT_EQ_INT(list.length, 6);
+  int64_t expect[] = {0, 10, 99, 20, 30, 40};
+  for (int i = 0; i < 6; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_insert_at_start_and_end() {
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 3; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 0, 0, -1);
+  // index == length appends.
+  kl_int64_list_splice(&list, list.length, 0, 100);
+  KL_TEST_EXPECT_EQ_INT(list.length, 5);
+  int64_t expect[] = {-1, 0, 1, 2, 100};
+  for (int i = 0; i < 5; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_replace_one() {
+  // to_remove == 1: in-place replacement.
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 5; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 2, 1, 77);
+  KL_TEST_EXPECT_EQ_INT(list.length, 5);
+  int64_t expect[] = {0, 1, 77, 3, 4};
+  for (int i = 0; i < 5; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_remove_many() {
+  // to_remove > 1 shrinks the list.
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 8; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 1, 5, 50);
+  KL_TEST_EXPECT_EQ_INT(list.length, 4);
+  int64_t expect[] = {0, 50, 6, 7};
+  for (int i = 0; i < 4; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_to_remove_clamped_to_tail() {
+  // to_remove past the end removes only what exists, like JS.
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 5; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 3, 1000, 33);
+  KL_TEST_EXPECT_EQ_INT(list.length, 4);
+  int64_t expect[] = {0, 1, 2, 33};
+  for (int i = 0; i < 4; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_negative_to_remove_is_insert() {
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 3; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 1, -5, 11);
+  KL_TEST_EXPECT_EQ_INT(list.length, 4);
+  int64_t expect[] = {0, 11, 1, 2};
+  for (int i = 0; i < 4; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_into_empty() {
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+
+  kl_int64_list_splice(&list, 0, 0, 42);
+  KL_TEST_EXPECT_EQ_INT(list.length, 1);
+  KL_TEST_ASSERT(list.items != 0, "items buffer allocated by splice into empty list");
+  KL_TEST_EXPECT_EQ_INT((int)list.items[0], 42);
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_grows_when_full() {
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4 });
+  for (int i = 0; i < 4; i++) kl_int64_list_push(&list, i);
+
+  // Fill the buffer completely, then splice-insert until well past it.
+  while (list.length < list.n_slots_allocated) kl_int64_list_push(&list, (int)list.length);
+  int64_t full = list.length;
+  for (int i = 0; i < 100; i++) {
+    kl_int64_list_splice(&list, 1, 0, 1000 + i);
+  }
+  KL_TEST_EXPECT_EQ_INT(list.length, (int)full + 100);
+  KL_TEST_ASSERT(list.n_slots_allocated >= list.length, "buffer grew to hold spliced items");
+  KL_TEST_EXPECT_EQ_INT((int)list.items[0], 0);
+  // Insertions at index 1 stack in reverse order.
+  for (int i = 0; i < 100; i++) {
+    KL_TEST_EXPECT_EQ_INT((int)list.items[1 + i], 1000 + (99 - i));
+  }
+  for (int i = 1; i < (int)full; i++) {
+    KL_TEST_EXPECT_EQ_INT((int)list.items[100 + i], i);
+  }
+
+  kl_int64_list_destroy(&list);
+}
+
+void test_int64_list_splice_with_arena_allocator() {
+  KL_Allocator alloc = {0};
+  kl_allocator_init(&alloc, (KL_AllocatorConfig){
+    .capacity = 4096,
+    .track_allocations = false,
+  });
+
+  KL_int64_List list = {0};
+  kl_int64_list_init(&list, (KL_ListConfig){ .capacity = 4, .allocator = &alloc });
+  for (int i = 0; i < 10; i++) kl_int64_list_push(&list, i);
+
+  kl_int64_list_splice(&list, 5, 3, 55);
+  KL_TEST_EXPECT_EQ_INT(list.length, 8);
+  int64_t expect[] = {0, 1, 2, 3, 4, 55, 8, 9};
+  for (int i = 0; i < 8; i++) KL_TEST_EXPECT_EQ_INT((int)list.items[i], (int)expect[i]);
+
+  kl_int64_list_destroy(&list);
+  kl_allocator_destroy(&alloc);
+}

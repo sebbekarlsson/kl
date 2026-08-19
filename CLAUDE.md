@@ -10,7 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `./compile.sh` — runs `cmake` + `make -j$(nproc)` into `./build/`. Always invoke from repo root; the script preserves cwd.
 - `./run.sh <target>` — compiles, then runs `./build/<target>`. The `test` target is the test runner: `./run.sh test`.
-- Single test: `./build/test --test <test_name>` (or `./run.sh test --test <test_name>`). The `--test` flag matches by function name as stringified in `KL_TEST_ENTRY`.
+- Single test: `./build/test --test <test_name>` (or `./run.sh test --test <test_name>`). The `--test` flag matches the exact function name as stringified in `KL_TEST_ENTRY`.
+- `./build/test --report <file>` writes a per-test timing report instead of running normally; `--filter <substr>` narrows which tests it includes (substring match; only used in report mode).
 - Build type is `RelWithDebInfo` with `-DNDEBUG` stripped so `assert()` stays live. Compile flags include `-mavx2 -mfma`; the codebase assumes an AVX2-capable x86_64 host.
 - `compile_commands.json` is exported into `./build/` for clangd/LSPs.
 
@@ -46,8 +47,9 @@ Framework layout (in the main library):
 - `src/test/framework.c` — the single definition of those counters/helpers plus `kl_test_run_entry`. They **must not** be `static` in the header: each test `.c` file is its own translation unit, so per-TU copies would desync the pass/fail totals.
 
 KL's own test suites live under `executables/test/`:
-- `include/test/tests.h` — umbrella header. Pulls in `<kl/test/framework.h>` + every library header a suite needs, and declares every test function so `main.c` can register it.
-- `src/test_<suite>.c` — test functions, one file per suite (`allocator`, `list`, `hashmap`, `sparse_set`, `string`, `fs`, `json`, `path`). Each `#include <test/tests.h>`. Suite-local helpers stay `static`.
-- `src/main.c` — the `tests[]` registry and CLI `--test` filter only.
+- `include/test/tests.h` — umbrella header. Pulls in `<kl/test/framework.h>` + every library header a suite needs, and declares every test function.
+- `include/test/entries.h` — the `TEST_ENTRIES[]` registry of `KL_TEST_ENTRY(...)` lines.
+- `src/test_<suite>.c` — test functions, one file per suite (`allocator`, `list`, `hashmap`, `string`, `json`, `noise`, `vec`, ... — see the directory for the full set). Each `#include <test/tests.h>`. Suite-local helpers stay `static`.
+- `src/main.c` — CLI handling only (`--test`, `--filter`, `--report`) plus the run loop over `TEST_ENTRIES`.
 
-No discovery. Adding a test is three steps: write the function in the relevant `src/test_<suite>.c`, declare it in `include/test/tests.h`, and add a `KL_TEST_ENTRY(...)` line to the `tests[]` array in `src/main.c`. `add_subproject` globs `src/*.c`, so a brand-new suite file is picked up on the next `./compile.sh` (cmake reruns) without editing `CMakeLists.txt`.
+No discovery. Adding a test is three steps: write the function in the relevant `src/test_<suite>.c`, declare it in `include/test/tests.h`, and add a `KL_TEST_ENTRY(...)` line to `TEST_ENTRIES[]` in `include/test/entries.h`. `add_subproject` globs `src/*.c`, so a brand-new suite file is picked up on the next `./compile.sh` (cmake reruns) without editing `CMakeLists.txt`.

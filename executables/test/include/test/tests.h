@@ -149,6 +149,15 @@ void test_int64_list_concat_basic();
 void test_int64_list_concat_onto_empty();
 void test_int64_list_concat_empty_source_is_noop();
 void test_int64_list_concat_large_forces_grow();
+void test_int64_list_splice_insert_middle();
+void test_int64_list_splice_insert_at_start_and_end();
+void test_int64_list_splice_replace_one();
+void test_int64_list_splice_remove_many();
+void test_int64_list_splice_to_remove_clamped_to_tail();
+void test_int64_list_splice_negative_to_remove_is_insert();
+void test_int64_list_splice_into_empty();
+void test_int64_list_splice_grows_when_full();
+void test_int64_list_splice_with_arena_allocator();
 
 /* ===================== int64_unique_list (test_unique_list.c) ===================== */
 void test_int64_unique_list_init_destroy();

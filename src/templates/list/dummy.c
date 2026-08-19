@@ -199,6 +199,34 @@ bool kl_NAME_list_remove_unordered(KL_NAME_List* list, T_X item) {
   return kl_NAME_list_pop_unordered_at(list, idx, 0) != 0;
 }
 
+void kl_NAME_list_splice(KL_NAME_List *list, int64_t index, int64_t to_remove, T_X item) {
+  assert(list->initialized == true);
+  assert(list->current_capacity > 0);
+  assert(index >= 0);
+  assert(index <= list->length);
+
+  if (to_remove < 0)
+    to_remove = 0;
+  if (to_remove > list->length - index)
+    to_remove = list->length - index;
+
+  int64_t new_length = list->length - to_remove + 1;
+  if (new_length > list->n_slots_allocated) {
+    kl_NAME_list_grow(list, list->current_capacity);
+    list->current_capacity += KL_MAX(list->current_capacity / 3, 1);
+  }
+  assert(list->items != 0);
+
+  int64_t tail = list->length - index - to_remove;
+  if (tail > 0) {
+    memmove(&list->items[index + 1], &list->items[index + to_remove],
+            tail * sizeof(T_X));
+  }
+
+  list->items[index] = item;
+  list->length = new_length;
+}
+
 bool kl_NAME_list_includes(KL_NAME_List *list, T_X item) {
   if (list == 0 || list->items == 0 || list->length <= 0)
     return false;

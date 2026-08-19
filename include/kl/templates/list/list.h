@@ -17,205 +17,229 @@ This file was automatically generated and must not be modified directly.
 #include <stdalign.h>
 
 
-#define KL_DEFINE_LIST(NAME, T)                                                         \
-  typedef struct {                                                                      \
-    KL_ListConfig config;                                                               \
-    size_t alignment;                                                                   \
-    T* items;                                                                           \
-    KL_Allocation allocation;                                                           \
-    volatile int64_t n_slots_allocated;                                                 \
-    volatile int64_t length;                                                            \
-    volatile int64_t current_capacity;                                                  \
-    bool initialized;                                                                   \
-  } KL_##NAME##_List;                                                                   \
-  int kl_##NAME##_list_init(KL_##NAME##_List* list, KL_ListConfig cfg);                 \
-  void kl_##NAME##_list_destroy(KL_##NAME##_List* list);                                \
-  void kl_##NAME##_list_reset(KL_##NAME##_List* list);                                  \
-  void kl_##NAME##_list_reset_fast(KL_##NAME##_List* list);                             \
-  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item);                           \
-  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);                     \
-  int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                             \
-  int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);             \
-  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out);   \
-  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item);                         \
-  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item);               \
-  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);                  \
-  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other);  \
-  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);                       \
+#define KL_DEFINE_LIST(NAME, T)                                                                    \
+  typedef struct {                                                                                 \
+    KL_ListConfig config;                                                                          \
+    size_t alignment;                                                                              \
+    T* items;                                                                                      \
+    KL_Allocation allocation;                                                                      \
+    volatile int64_t n_slots_allocated;                                                            \
+    volatile int64_t length;                                                                       \
+    volatile int64_t current_capacity;                                                             \
+    bool initialized;                                                                              \
+  } KL_##NAME##_List;                                                                              \
+  int kl_##NAME##_list_init(KL_##NAME##_List* list, KL_ListConfig cfg);                            \
+  void kl_##NAME##_list_destroy(KL_##NAME##_List* list);                                           \
+  void kl_##NAME##_list_reset(KL_##NAME##_List* list);                                             \
+  void kl_##NAME##_list_reset_fast(KL_##NAME##_List* list);                                        \
+  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item);                                      \
+  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item);                                \
+  int kl_##NAME##_list_pop(KL_##NAME##_List* list, T* out);                                        \
+  int kl_##NAME##_list_pop_at(KL_##NAME##_List* list, int64_t idx, T* out);                        \
+  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out);              \
+  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item);                                    \
+  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item);                          \
+  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots);                             \
+  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other);             \
+  void kl_##NAME##_list_splice(KL_##NAME##_List* list, int64_t index, int64_t to_remove, T item);  \
+  bool kl_##NAME##_list_includes(KL_##NAME##_List* list, T item);                                  \
   int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item);
 
 
 
-#define KL_IMPL_LIST(NAME, T)                                                                    \
-  int kl_##NAME##_list_init(KL_##NAME##_List *list, KL_ListConfig cfg) {                         \
-    assert(cfg.capacity > 0);                                                                    \
-    if (list->initialized)                                                                       \
-      return 1;                                                                                  \
-    list->alignment = alignof(T);                                                                \
-    list->config = cfg;                                                                          \
-    list->items = 0;                                                                             \
-    list->length = 0;                                                                            \
-    list->n_slots_allocated = 0;                                                                 \
-    list->current_capacity = cfg.capacity;                                                       \
-    list->allocation = (KL_Allocation){0};                                                       \
-    list->initialized = true;                                                                    \
-    return 1;                                                                                    \
-  }                                                                                              \
-  void kl_##NAME##_list_destroy(KL_##NAME##_List *list) {                                        \
-    if (list->config.allocator == 0) {                                                           \
-      if (list->items != 0) {                                                                    \
-        free(list->items);                                                                       \
-      }                                                                                          \
-    } else if (list->allocation.size > 0 && list->config.allocator->initialized) {               \
-      kl_allocator_free_allocation(list->config.allocator, list->allocation);                    \
-    }                                                                                            \
-    list->allocation = (KL_Allocation){0};                                                       \
-    list->items = 0;                                                                             \
-    list->config = (KL_ListConfig){0};                                                           \
-    list->length = 0;                                                                            \
-    list->n_slots_allocated = 0;                                                                 \
-    list->current_capacity = 0;                                                                  \
-    list->initialized = false;                                                                   \
-  }                                                                                              \
-  void kl_##NAME##_list_reset(KL_##NAME##_List *list) {                                          \
-    if (list->items != 0) {                                                                      \
-      if (list->n_slots_allocated > 0) {                                                         \
-        memset(&list->items[0], 0, list->n_slots_allocated * sizeof(T));                         \
-      }                                                                                          \
-    }                                                                                            \
-    list->length = 0;                                                                            \
-  }                                                                                              \
-  void kl_##NAME##_list_reset_fast(KL_##NAME##_List *list) {                                     \
-    list->length = 0;                                                                            \
-  }                                                                                              \
-  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots) {                          \
-    if (list->config.allocator != 0) {                                                           \
-      list->items = (T *)kl_allocator_realloc_aligned(                                           \
-          list->config.allocator,                                                                \
-          (list->n_slots_allocated + n_slots) * sizeof(T), list->alignment, &list->allocation);  \
-      assert(list->items != 0);                                                                  \
-      memset(&list->items[list->n_slots_allocated], 0, n_slots * sizeof(T));                     \
-      list->n_slots_allocated += n_slots;                                                        \
-      return;                                                                                    \
-    }                                                                                            \
-    list->items = (T *)kl_aligned_realloc(                                                       \
-      list->items,                                                                               \
-      (list->n_slots_allocated + n_slots) * sizeof(T),                                           \
-      list->alignment                                                                            \
-    );                                                                                           \
-    assert(list->items != 0);                                                                    \
-    memset(&list->items[list->n_slots_allocated], 0, n_slots * sizeof(T));                       \
-    list->n_slots_allocated += n_slots;                                                          \
-  }                                                                                              \
-  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other) {          \
-    assert(list->initialized == true);                                                           \
-    if (other == 0 || other->items == 0 || other->length <= 0)                                   \
-      return;                                                                                    \
-    int64_t avail = list->n_slots_allocated - list->length;                                      \
-    if (avail < other->length) {                                                                 \
-      kl_##NAME##_list_grow(list, other->length - avail);                                        \
-    }                                                                                            \
-    assert(list->items != 0);                                                                    \
-    memcpy(&list->items[list->length], &other->items[0],                                         \
-           other->length * sizeof(T));                                                           \
-    list->length += other->length;                                                               \
-  }                                                                                              \
-  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item) {                                   \
-    assert(list->initialized == true);                                                           \
-    assert(list->current_capacity > 0);                                                          \
-    int64_t avail = list->n_slots_allocated - list->length;                                      \
-    if (avail <= 0) {                                                                            \
-      kl_##NAME##_list_grow(list, list->current_capacity);                                       \
-      list->current_capacity += KL_MAX(list->current_capacity / 3, 1);                           \
-    }                                                                                            \
-    assert(list->items != 0);                                                                    \
-    list->items[list->length++] = item;                                                          \
-  }                                                                                              \
-  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item) {                             \
-    assert(list->initialized == true);                                                           \
-    assert(list->current_capacity > 0);                                                          \
-    int64_t avail = list->n_slots_allocated - list->length;                                      \
-    if (avail <= 0) {                                                                            \
-      kl_##NAME##_list_grow(list, list->current_capacity);                                       \
-      list->current_capacity += KL_MAX(list->current_capacity / 3, 1);                           \
-    }                                                                                            \
-    assert(list->items != 0);                                                                    \
-    for (int64_t i = list->length; i > 0; i--) {                                                 \
-      list->items[i] = list->items[i - 1];                                                       \
-    }                                                                                            \
-    list->items[0] = item;                                                                       \
-    list->length++;                                                                              \
-  }                                                                                              \
-  int kl_##NAME##_list_pop(KL_##NAME##_List *list, T *out) {                                     \
-    assert(list->initialized == true);                                                           \
-    if (list->length <= 0 || list->items == 0)                                                   \
-      return 0;                                                                                  \
-    if (out != 0) {                                                                              \
-      *out = list->items[list->length - 1];                                                      \
-    }                                                                                            \
-    list->length -= 1;                                                                           \
-    return 1;                                                                                    \
-  }                                                                                              \
-  int kl_##NAME##_list_pop_at(KL_##NAME##_List *list, int64_t idx, T *out) {                     \
-    assert(list->initialized == true);                                                           \
-    if (list->length <= 0 || list->items == 0)                                                   \
-      return 0;                                                                                  \
-    assert(idx < list->length);                                                                  \
-    assert(idx >= 0);                                                                            \
-    if (out != 0) {                                                                              \
-      *out = list->items[idx];                                                                   \
-    }                                                                                            \
-    for (int64_t i = idx; i < list->length - 1; i++) {                                           \
-      list->items[i] = list->items[i + 1];                                                       \
-    }                                                                                            \
-    list->length -= 1;                                                                           \
-    return 1;                                                                                    \
-  }                                                                                              \
-  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out) {           \
-    assert(list->initialized == true);                                                           \
-    if (list->length <= 0 || list->items == 0)                                                   \
-      return 0;                                                                                  \
-    assert(idx < list->length);                                                                  \
-    assert(idx >= 0);                                                                            \
-    if (out != 0) {                                                                              \
-      *out = list->items[idx];                                                                   \
-    }                                                                                            \
-    list->items[idx] = list->items[list->length-1];                                              \
-    list->length -= 1;                                                                           \
-    return 1;                                                                                    \
-  }                                                                                              \
-  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item) {                                 \
-    assert(list->initialized);                                                                   \
-    int64_t idx = kl_##NAME##_list_index_of(list, item);                                         \
-    if (idx < 0) return false;                                                                   \
-    return kl_##NAME##_list_pop_at(list, idx, 0) != 0;                                           \
-  }                                                                                              \
-  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item) {                       \
-    assert(list->initialized);                                                                   \
-    int64_t idx = kl_##NAME##_list_index_of(list, item);                                         \
-    if (idx < 0) return false;                                                                   \
-    return kl_##NAME##_list_pop_unordered_at(list, idx, 0) != 0;                                 \
-  }                                                                                              \
-  bool kl_##NAME##_list_includes(KL_##NAME##_List *list, T item) {                               \
-    if (list == 0 || list->items == 0 || list->length <= 0)                                      \
-      return false;                                                                              \
-    for (int64_t i = 0; i < list->length; i++) {                                                 \
-      if (memcmp(&list->items[i], &item, sizeof(T)) == 0)                                        \
-        return true;                                                                             \
-    }                                                                                            \
-    return false;                                                                                \
-  }                                                                                              \
-  int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item) {                            \
-    if (list == 0) return -1;                                                                    \
-                                                                                                 \
-    assert(list->initialized);                                                                   \
-                                                                                                 \
-    if (list->length <= 0 || list->items == 0) return -1;                                        \
-    for (int64_t i = 0; i < list->length; i++) {                                                 \
-      T v = list->items[i];                                                                      \
-      if (memcmp(&v, &item, sizeof(T)) == 0) return i;                                           \
-    }                                                                                            \
-    return -1;                                                                                   \
+#define KL_IMPL_LIST(NAME, T)                                                                       \
+  int kl_##NAME##_list_init(KL_##NAME##_List *list, KL_ListConfig cfg) {                            \
+    assert(cfg.capacity > 0);                                                                       \
+    if (list->initialized)                                                                          \
+      return 1;                                                                                     \
+    list->alignment = alignof(T);                                                                   \
+    list->config = cfg;                                                                             \
+    list->items = 0;                                                                                \
+    list->length = 0;                                                                               \
+    list->n_slots_allocated = 0;                                                                    \
+    list->current_capacity = cfg.capacity;                                                          \
+    list->allocation = (KL_Allocation){0};                                                          \
+    list->initialized = true;                                                                       \
+    return 1;                                                                                       \
+  }                                                                                                 \
+  void kl_##NAME##_list_destroy(KL_##NAME##_List *list) {                                           \
+    if (list->config.allocator == 0) {                                                              \
+      if (list->items != 0) {                                                                       \
+        free(list->items);                                                                          \
+      }                                                                                             \
+    } else if (list->allocation.size > 0 && list->config.allocator->initialized) {                  \
+      kl_allocator_free_allocation(list->config.allocator, list->allocation);                       \
+    }                                                                                               \
+    list->allocation = (KL_Allocation){0};                                                          \
+    list->items = 0;                                                                                \
+    list->config = (KL_ListConfig){0};                                                              \
+    list->length = 0;                                                                               \
+    list->n_slots_allocated = 0;                                                                    \
+    list->current_capacity = 0;                                                                     \
+    list->initialized = false;                                                                      \
+  }                                                                                                 \
+  void kl_##NAME##_list_reset(KL_##NAME##_List *list) {                                             \
+    if (list->items != 0) {                                                                         \
+      if (list->n_slots_allocated > 0) {                                                            \
+        memset(&list->items[0], 0, list->n_slots_allocated * sizeof(T));                            \
+      }                                                                                             \
+    }                                                                                               \
+    list->length = 0;                                                                               \
+  }                                                                                                 \
+  void kl_##NAME##_list_reset_fast(KL_##NAME##_List *list) {                                        \
+    list->length = 0;                                                                               \
+  }                                                                                                 \
+  void kl_##NAME##_list_grow(KL_##NAME##_List *list, int64_t n_slots) {                             \
+    if (list->config.allocator != 0) {                                                              \
+      list->items = (T *)kl_allocator_realloc_aligned(                                              \
+          list->config.allocator,                                                                   \
+          (list->n_slots_allocated + n_slots) * sizeof(T), list->alignment, &list->allocation);     \
+      assert(list->items != 0);                                                                     \
+      memset(&list->items[list->n_slots_allocated], 0, n_slots * sizeof(T));                        \
+      list->n_slots_allocated += n_slots;                                                           \
+      return;                                                                                       \
+    }                                                                                               \
+    list->items = (T *)kl_aligned_realloc(                                                          \
+      list->items,                                                                                  \
+      (list->n_slots_allocated + n_slots) * sizeof(T),                                              \
+      list->alignment                                                                               \
+    );                                                                                              \
+    assert(list->items != 0);                                                                       \
+    memset(&list->items[list->n_slots_allocated], 0, n_slots * sizeof(T));                          \
+    list->n_slots_allocated += n_slots;                                                             \
+  }                                                                                                 \
+  void kl_##NAME##_list_concat(KL_##NAME##_List *list, const KL_##NAME##_List *other) {             \
+    assert(list->initialized == true);                                                              \
+    if (other == 0 || other->items == 0 || other->length <= 0)                                      \
+      return;                                                                                       \
+    int64_t avail = list->n_slots_allocated - list->length;                                         \
+    if (avail < other->length) {                                                                    \
+      kl_##NAME##_list_grow(list, other->length - avail);                                           \
+    }                                                                                               \
+    assert(list->items != 0);                                                                       \
+    memcpy(&list->items[list->length], &other->items[0],                                            \
+           other->length * sizeof(T));                                                              \
+    list->length += other->length;                                                                  \
+  }                                                                                                 \
+  void kl_##NAME##_list_push(KL_##NAME##_List *list, T item) {                                      \
+    assert(list->initialized == true);                                                              \
+    assert(list->current_capacity > 0);                                                             \
+    int64_t avail = list->n_slots_allocated - list->length;                                         \
+    if (avail <= 0) {                                                                               \
+      kl_##NAME##_list_grow(list, list->current_capacity);                                          \
+      list->current_capacity += KL_MAX(list->current_capacity / 3, 1);                              \
+    }                                                                                               \
+    assert(list->items != 0);                                                                       \
+    list->items[list->length++] = item;                                                             \
+  }                                                                                                 \
+  void kl_##NAME##_list_push_start(KL_##NAME##_List *list, T item) {                                \
+    assert(list->initialized == true);                                                              \
+    assert(list->current_capacity > 0);                                                             \
+    int64_t avail = list->n_slots_allocated - list->length;                                         \
+    if (avail <= 0) {                                                                               \
+      kl_##NAME##_list_grow(list, list->current_capacity);                                          \
+      list->current_capacity += KL_MAX(list->current_capacity / 3, 1);                              \
+    }                                                                                               \
+    assert(list->items != 0);                                                                       \
+    for (int64_t i = list->length; i > 0; i--) {                                                    \
+      list->items[i] = list->items[i - 1];                                                          \
+    }                                                                                               \
+    list->items[0] = item;                                                                          \
+    list->length++;                                                                                 \
+  }                                                                                                 \
+  int kl_##NAME##_list_pop(KL_##NAME##_List *list, T *out) {                                        \
+    assert(list->initialized == true);                                                              \
+    if (list->length <= 0 || list->items == 0)                                                      \
+      return 0;                                                                                     \
+    if (out != 0) {                                                                                 \
+      *out = list->items[list->length - 1];                                                         \
+    }                                                                                               \
+    list->length -= 1;                                                                              \
+    return 1;                                                                                       \
+  }                                                                                                 \
+  int kl_##NAME##_list_pop_at(KL_##NAME##_List *list, int64_t idx, T *out) {                        \
+    assert(list->initialized == true);                                                              \
+    if (list->length <= 0 || list->items == 0)                                                      \
+      return 0;                                                                                     \
+    assert(idx < list->length);                                                                     \
+    assert(idx >= 0);                                                                               \
+    if (out != 0) {                                                                                 \
+      *out = list->items[idx];                                                                      \
+    }                                                                                               \
+    for (int64_t i = idx; i < list->length - 1; i++) {                                              \
+      list->items[i] = list->items[i + 1];                                                          \
+    }                                                                                               \
+    list->length -= 1;                                                                              \
+    return 1;                                                                                       \
+  }                                                                                                 \
+  int kl_##NAME##_list_pop_unordered_at(KL_##NAME##_List* list, int64_t idx, T* out) {              \
+    assert(list->initialized == true);                                                              \
+    if (list->length <= 0 || list->items == 0)                                                      \
+      return 0;                                                                                     \
+    assert(idx < list->length);                                                                     \
+    assert(idx >= 0);                                                                               \
+    if (out != 0) {                                                                                 \
+      *out = list->items[idx];                                                                      \
+    }                                                                                               \
+    list->items[idx] = list->items[list->length-1];                                                 \
+    list->length -= 1;                                                                              \
+    return 1;                                                                                       \
+  }                                                                                                 \
+  bool kl_##NAME##_list_remove(KL_##NAME##_List* list, T item) {                                    \
+    assert(list->initialized);                                                                      \
+    int64_t idx = kl_##NAME##_list_index_of(list, item);                                            \
+    if (idx < 0) return false;                                                                      \
+    return kl_##NAME##_list_pop_at(list, idx, 0) != 0;                                              \
+  }                                                                                                 \
+  bool kl_##NAME##_list_remove_unordered(KL_##NAME##_List* list, T item) {                          \
+    assert(list->initialized);                                                                      \
+    int64_t idx = kl_##NAME##_list_index_of(list, item);                                            \
+    if (idx < 0) return false;                                                                      \
+    return kl_##NAME##_list_pop_unordered_at(list, idx, 0) != 0;                                    \
+  }                                                                                                 \
+  void kl_##NAME##_list_splice(KL_##NAME##_List *list, int64_t index, int64_t to_remove, T item) {  \
+    assert(list->initialized == true);                                                              \
+    assert(list->current_capacity > 0);                                                             \
+    assert(index >= 0);                                                                             \
+    assert(index <= list->length);                                                                  \
+    if (to_remove < 0)                                                                              \
+      to_remove = 0;                                                                                \
+    if (to_remove > list->length - index)                                                           \
+      to_remove = list->length - index;                                                             \
+    int64_t new_length = list->length - to_remove + 1;                                              \
+    if (new_length > list->n_slots_allocated) {                                                     \
+      kl_##NAME##_list_grow(list, list->current_capacity);                                          \
+      list->current_capacity += KL_MAX(list->current_capacity / 3, 1);                              \
+    }                                                                                               \
+    assert(list->items != 0);                                                                       \
+    int64_t tail = list->length - index - to_remove;                                                \
+    if (tail > 0) {                                                                                 \
+      memmove(&list->items[index + 1], &list->items[index + to_remove],                             \
+              tail * sizeof(T));                                                                    \
+    }                                                                                               \
+    list->items[index] = item;                                                                      \
+    list->length = new_length;                                                                      \
+  }                                                                                                 \
+  bool kl_##NAME##_list_includes(KL_##NAME##_List *list, T item) {                                  \
+    if (list == 0 || list->items == 0 || list->length <= 0)                                         \
+      return false;                                                                                 \
+    for (int64_t i = 0; i < list->length; i++) {                                                    \
+      if (memcmp(&list->items[i], &item, sizeof(T)) == 0)                                           \
+        return true;                                                                                \
+    }                                                                                               \
+    return false;                                                                                   \
+  }                                                                                                 \
+  int64_t kl_##NAME##_list_index_of(KL_##NAME##_List* list, T item) {                               \
+    if (list == 0) return -1;                                                                       \
+                                                                                                    \
+    assert(list->initialized);                                                                      \
+                                                                                                    \
+    if (list->length <= 0 || list->items == 0) return -1;                                           \
+    for (int64_t i = 0; i < list->length; i++) {                                                    \
+      T v = list->items[i];                                                                         \
+      if (memcmp(&v, &item, sizeof(T)) == 0) return i;                                              \
+    }                                                                                               \
+    return -1;                                                                                      \
   }
 
 /* generated */
