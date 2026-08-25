@@ -72,3 +72,11 @@ double kl_slt_f64(double a, double b, double s) {
   double h = kl_clamp_f64(0.5 + (0.5 * (b - a)) / s, 0.0, 1.0);
   return kl_lerp_f64(0.0, 1.0, h * h * (3.0 - 2.0 * h));
 }
+
+float kl_sigmoid_f32(float x) {
+  return 1.0f / (1.0f + expf(-x));
+}
+
+double kl_sigmoid_f64(double x) {
+  return 1.0 / (1.0 + exp(-x));
+}

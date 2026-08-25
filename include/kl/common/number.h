@@ -44,4 +44,11 @@ float kl_slt_f32(float a, float b, float s);
 
 double kl_slt_f64(double a, double b, double s);
 
+/**
+* @brief logistic sigmoid, 1 / (1 + e^-x)
+**/
+float kl_sigmoid_f32(float x);
+
+double kl_sigmoid_f64(double x);
+
 #endif
