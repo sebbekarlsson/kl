@@ -95,25 +95,32 @@ static bool parse_value(KL_CLIArgType type, KL_StrConst value, KL_CLIArgParsed* 
   return false;
 }
 
-static inline bool parse_arg(KL_CLICommand* cmd, KL_CLIArgConfig argcfg, int argc, char* argv[], KL_CLIArgParsed* out) {
+typedef enum {
+  PARSE_ARG_ABSENT,   // not supplied and no default
+  PARSE_ARG_OK,       // parsed, or the default applied
+  PARSE_ARG_INVALID   // supplied, but the value is not a valid `type`
+} ParseArgResult;
+
+// `out_raw` receives the raw supplied token (for error reporting) when the
+// option was present on the command line.
+static inline ParseArgResult parse_arg(KL_CLICommand* cmd, KL_CLIArgConfig argcfg, int argc, char* argv[], KL_CLIArgParsed* out, KL_StrConst* out_raw) {
   // A default value makes the argument optional: never let kl_cli_get_arg
   // exit(1) on a missing required arg when we have a fallback to apply.
   bool has_default = argcfg.default_value.type != KL_CLI_ARG_UNDEFINED;
-
   KL_StrConst value = kl_cli_get_arg(argc, argv, argcfg.name, argcfg.required && !has_default);
-
   if (value.length <= 0 || value.value == 0) {
     if (has_default) {
       *out = argcfg.default_value;
       out->name = argcfg.name;
-      return true;
+      return PARSE_ARG_OK;
     }
-    return false;
+    return PARSE_ARG_ABSENT;
   }
-
+  *out_raw = value;
   out->name = argcfg.name;
-
-  return parse_value(argcfg.type, value, out);
+  // A supplied value that fails to parse is an error even for an optional
+  // argument — silently falling back to the default would hide typos.
+  return parse_value(argcfg.type, value, out) ? PARSE_ARG_OK : PARSE_ARG_INVALID;
 }
 
 static const char* arg_type_name(KL_CLIArgType type) {
@@ -303,10 +310,18 @@ int kl_cli_program_run(KL_CLIProgram* program, int argc, char* argv[]) {
       for (int64_t j = 0; j < cmd->config_args.length; j++) {
         KL_CLIArgConfig arg_cfg = cmd->config_args.items[j];
         KL_CLIArgParsed parsed = {0};
-        if (!parse_arg(cmd, arg_cfg, argc, argv, &parsed)) {
+        KL_StrConst raw = {0};
+        ParseArgResult res = parse_arg(cmd, arg_cfg, argc, argv, &parsed, &raw);
+        if (res == PARSE_ARG_INVALID) {
+          fprintf(stderr, "Invalid value for option '--%.*s': '%.*s' is not a valid %s\n",
+                  (int)arg_cfg.name.length, arg_cfg.name.value,
+                  (int)raw.length, raw.value,
+                  arg_type_name(arg_cfg.type));
+          return 1;
+        }
+        if (res == PARSE_ARG_ABSENT) {
           if (!arg_cfg.required) continue;
-          
-          fprintf(stderr, "Failed to parse argument: '%s'\n", arg_cfg.name.value);
+          fprintf(stderr, "Missing required option: '--%.*s'\n", (int)arg_cfg.name.length, arg_cfg.name.value);
           return 1;
         }
         kl_cli_arg_parsed_list_push(&cmd->parsed_args, parsed);
