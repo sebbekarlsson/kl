@@ -1,6 +1,8 @@
 /**
 * A thread-safe structure for acquiring and recycling memory.
-* The capacity is fixed, it never grows.
+* The capacity is fixed by default; set `grow_when_full` to let the pool add
+* another `count` slots whenever it runs out. Growth appends a new chunk rather
+* than reallocating, so slot pointers and handles stay valid across it.
 **/
 
 
@@ -8,23 +10,41 @@
 #define KL_BINARY_POOL_H
 
 #include <kl/templates/list/int64_list.h>
+#include <kl/memory/allocator.h>
 #include <kl/threads/mutex.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 typedef struct {
+  // Initial slot count. With `grow_when_full` it is also the chunk size: every
+  // growth step adds another `count` slots.
   int64_t count;
   int64_t element_size;
   int64_t element_alignment;
 
+  // When true, an acquire on a full pool allocates a new chunk of `count` slots
+  // instead of failing. Existing slot pointers/handles are unaffected.
+  bool grow_when_full;
+
   KL_Allocator* allocator; // optional
 } KL_BinaryPoolConfig;
+
+// Slot indices are 32-bit inside handles, so the pool can never hold more.
+#define KL_BINARY_POOL_MAX_CAPACITY ((int64_t)1 << 32)
 
 typedef struct {
   bool initialized;
   KL_BinaryPoolConfig config;
-  
-  uint8_t* items;
+
+  // Slot storage is chunked: chunk i holds slots [i*count, (i+1)*count). A
+  // fixed pool has exactly one chunk; a growing pool appends chunks. Chunks are
+  // never moved, so a slot's address is stable for the pool's lifetime.
+  uint8_t** chunks;
+  KL_Allocation chunks_allocation;
+  int64_t chunk_count;
+  // Total slots across all chunks (== chunk_count * config.count).
+  int64_t capacity;
+
   KL_int64_List free_indices;
   KL_int64_List taken_indices;
 
@@ -32,11 +52,13 @@ typedef struct {
   // inside `taken_indices`. Doubles as the "is taken?" check and as a
   // direct pointer for O(1) swap-and-pop on release.
   int64_t* taken_pos;
+  KL_Allocation taken_pos_allocation;
 
   // For each slot: a version counter bumped on every acquire. Encoded into the
   // high bits of a handle so a stale handle (whose slot was released and later
   // recycled into a different occupant) can be detected and rejected.
   int64_t* generations;
+  KL_Allocation generations_allocation;
 
   KL_Mutex lock;
 } KL_BinaryPool;
@@ -45,7 +67,13 @@ bool kl_binary_pool_init(KL_BinaryPool* pool, KL_BinaryPoolConfig cfg);
 
 void kl_binary_pool_destroy(KL_BinaryPool* pool);
 
+// Marks every slot free and zeroes slot memory. Capacity gained through
+// growth is kept, not released.
 void kl_binary_pool_reset(KL_BinaryPool* pool);
+
+// Total number of slots currently backed by storage (0 before the first
+// acquire). Grows in steps of `config.count` when `grow_when_full` is set.
+int64_t kl_binary_pool_capacity(KL_BinaryPool* pool);
 
 // --- Index-addressed API -----------------------------------------------------
 // Slots are addressed by a bare index. The index stays valid only while the
@@ -86,7 +114,8 @@ static inline int64_t kl_binary_pool_handle_generation(int64_t handle) {
 }
 
 // Acquire a slot and return a versioned handle (>= 0), or -1 if the pool is
-// full. If out_ptr is non-null it receives the slot's storage pointer.
+// full (and cannot or may not grow). If out_ptr is non-null it receives the
+// slot's storage pointer.
 int64_t kl_binary_pool_acquire(KL_BinaryPool* pool, uint8_t** out_ptr);
 
 // Map a handle to its live slot index, or -1 if the handle is stale (slot freed

@@ -255,6 +255,8 @@ static const KL_TestEntry TEST_ENTRIES[] = {
   KL_TEST_ENTRY(test_cli_program_positionals),
   KL_TEST_ENTRY(test_cli_program_positional_defaults_and_required),
   KL_TEST_ENTRY(test_cli_program_typed_and_extra_positionals),
+  KL_TEST_ENTRY(test_cli_program_deferred_options),
+  KL_TEST_ENTRY(test_cli_program_help_dispatches_command),
 
   KL_TEST_ENTRY(test_binary_pool_init_destroy),
   KL_TEST_ENTRY(test_binary_pool_double_init_is_noop),
@@ -281,6 +283,14 @@ static const KL_TestEntry TEST_ENTRIES[] = {
   KL_TEST_ENTRY(test_binary_pool_handle_stale_release_is_noop),
   KL_TEST_ENTRY(test_binary_pool_handle_invalid_after_reset),
   KL_TEST_ENTRY(test_binary_pool_handle_generation_wraps),
+  KL_TEST_ENTRY(test_binary_pool_fixed_does_not_grow_by_default),
+  KL_TEST_ENTRY(test_binary_pool_grow_when_full_adds_chunk),
+  KL_TEST_ENTRY(test_binary_pool_grow_keeps_existing_pointers_stable),
+  KL_TEST_ENTRY(test_binary_pool_grow_keeps_handles_valid),
+  KL_TEST_ENTRY(test_binary_pool_grow_prefers_freed_slots_over_growing),
+  KL_TEST_ENTRY(test_binary_pool_reset_after_grow_keeps_capacity),
+  KL_TEST_ENTRY(test_binary_pool_grow_slots_are_aligned_and_strided),
+  KL_TEST_ENTRY(test_binary_pool_grow_release_across_chunks),
 
   KL_TEST_ENTRY(test_vec2_constructors),
   KL_TEST_ENTRY(test_vec2_mag),

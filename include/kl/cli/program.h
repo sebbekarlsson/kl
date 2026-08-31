@@ -69,6 +69,16 @@ struct KL_CLICommand {
   KL_cli_arg_config_List config_positionals;
   KL_cli_arg_parsed_List parsed_positionals;
   KL_CLIProgram* program;
+  // The command line the command was dispatched with; set by
+  // kl_cli_program_run just before parsing, so options declared *inside* the
+  // command function ("deferred" options) can still be parsed against it.
+  // Zero until the command is actually run.
+  int argc;
+  char** argv;
+  // True when `--help`/`-h` was present on the command line. The command is
+  // dispatched anyway (so it can declare its deferred options); it decides
+  // when to stop — see kl_cli_command_terminate_if_help.
+  bool help_requested;
 };
 
 KL_DEFINE_LIST(cli_command, KL_CLICommand);
@@ -95,13 +105,33 @@ void kl_cli_program_init(KL_CLIProgram* program, KL_CLIProgramConfig cfg);
 
 void kl_cli_program_destroy(KL_CLIProgram* program);
 
+// Parse the command line and dispatch the named command. `--help`/`-h` with
+// no (or an unknown) command prints the program-level help and returns 0.
+// With a matching command, the command function still runs — arguments are
+// parsed leniently (a missing required or invalid value does not abort) so
+// the function can declare its deferred options first; it is expected to call
+// kl_cli_command_terminate_if_help once they are all declared.
 int kl_cli_program_run(KL_CLIProgram* program, int argc, char* argv[]);
 
 KL_CLICommand* kl_cli_program_define_command(KL_CLIProgram* program, KL_CLICommandConfig cfg);
 
 // -------- command
 
- KL_CLICommand* kl_cli_command_add_option(KL_CLICommand* cmd, KL_CLIArgConfig cfg);
+// Declare an option (`--name value` / `--name=value`). Normally called while
+// building the program, before kl_cli_program_run parses the command line —
+// but it may also be called from inside the command function itself (e.g. a
+// sub-mode declaring its own options lazily): an option added after the
+// command was dispatched is parsed immediately against the stored command
+// line, so kl_cli_command_get_* sees it right away. In that deferred case an
+// invalid supplied value or a missing required option prints the same error
+// the up-front parse would have and exits(1).
+KL_CLICommand* kl_cli_command_add_option(KL_CLICommand* cmd, KL_CLIArgConfig cfg);
+
+// If `--help`/`-h` was on the command line, print this command's help
+// (usage, positionals, options — including any declared after dispatch) to
+// stdout and exit(0); otherwise do nothing. Command functions should call
+// this right after declaring their deferred options, before doing real work.
+void kl_cli_command_terminate_if_help(KL_CLICommand* cmd);
 
 // Declare a positional argument. Positionals are matched in declaration order
 // against the bare (non `-`-prefixed) tokens that follow the command name,

@@ -334,3 +334,186 @@ void test_cli_program_typed_and_extra_positionals(KL_TestFunctionContext* ctx) {
   }
   KL_TEST_IT_END(ctx);
 }
+
+/* ---- deferred (declared inside the command fn) options ---- */
+
+static int kl_cli_test_deferred_fn(KL_CLICommand* cmd) {
+  KL_CLITestCapture* cap = (KL_CLITestCapture*)cmd->config.user_ptr;
+  cap->called = true;
+
+  // Declared only now, after kl_cli_program_run's parse loop already ran:
+  // add_option must parse it against the stored command line immediately.
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("foo"),
+    .type = KL_CLI_ARG_INTEGER
+  });
+  cap->sum = kl_cli_command_get_integer(cmd, KL_STR_CONST_LIT("foo"), -1);
+
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("bar"),
+    .type = KL_CLI_ARG_STRING,
+    .default_value = {
+      .type = KL_CLI_ARG_STRING,
+      .as.string = KL_STR_CONST_LIT("fallback")
+    }
+  });
+  cap->from = kl_cli_command_get_string(cmd, KL_STR_CONST_LIT("bar"), (KL_StrConst){0});
+
+  return 0;
+}
+
+void test_cli_program_deferred_options(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "parses an option declared inside the command function");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+
+    KL_CLITestCapture cap = {0};
+    kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+      .name = KL_STR_CONST_LIT("run"),
+      .fn = kl_cli_test_deferred_fn,
+      .user_ptr = &cap
+    });
+
+    char* argv[] = {"prog", "run", "--foo=123"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    KL_TEST_EXPECT_EXPR(cap.called);
+    KL_TEST_EXPECT_EQ_INT(cap.sum, 123);
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "applies the default of an absent deferred option");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+
+    KL_CLITestCapture cap = {0};
+    kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+      .name = KL_STR_CONST_LIT("run"),
+      .fn = kl_cli_test_deferred_fn,
+      .user_ptr = &cap
+    });
+
+    char* argv[] = {"prog", "run"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    KL_TEST_EXPECT_EQ_INT(cap.sum, -1);
+    expect_arg(cap.from, "fallback");
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+/* ---- --help dispatch + kl_cli_command_terminate_if_help ---- */
+
+static int kl_cli_test_help_dispatch_fn(KL_CLICommand* cmd) {
+  KL_CLITestCapture* cap = (KL_CLITestCapture*)cmd->config.user_ptr;
+  cap->called = true;
+  cap->force = cmd->help_requested;
+
+  // Deferred option declared under help mode: must register (for the help
+  // listing) without exploding, then be readable via its default.
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("foo"),
+    .type = KL_CLI_ARG_INTEGER,
+    .default_value = { .type = KL_CLI_ARG_INTEGER, .as.integer = 7 }
+  });
+  cap->sum = kl_cli_command_get_integer(cmd, KL_STR_CONST_LIT("foo"), -1);
+
+  // A no-op when --help was not passed; exit(0)s the runner (test failure by
+  // vanishing) if the flag were misdetected.
+  if (!cmd->help_requested) {
+    kl_cli_command_terminate_if_help(cmd);
+  }
+  return 0;
+}
+
+void test_cli_program_help_dispatches_command(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "dispatches the named command even when --help is present");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+
+    KL_CLITestCapture cap = {0};
+    KL_CLICommand* cmd = kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+      .name = KL_STR_CONST_LIT("run"),
+      .fn = kl_cli_test_help_dispatch_fn,
+      .user_ptr = &cap
+    });
+    // Required args must not block the help dispatch (lenient parse).
+    kl_cli_command_add_positional(cmd, (KL_CLIArgConfig){
+      .name = KL_STR_CONST_LIT("target"),
+      .type = KL_CLI_ARG_STRING,
+      .required = true
+    });
+    kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+      .name = KL_STR_CONST_LIT("count"),
+      .type = KL_CLI_ARG_INTEGER,
+      .required = true
+    });
+
+    char* argv[] = {"prog", "run", "--help"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    KL_TEST_EXPECT_EXPR(cap.called);
+    KL_TEST_EXPECT_EXPR(cap.force);          /* help_requested was set */
+    KL_TEST_EXPECT_EQ_INT(cap.sum, 7);       /* deferred default applied */
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "help_requested stays false (and terminate is a no-op) without --help");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+
+    KL_CLITestCapture cap = {0};
+    kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+      .name = KL_STR_CONST_LIT("run"),
+      .fn = kl_cli_test_help_dispatch_fn,
+      .user_ptr = &cap
+    });
+
+    char* argv[] = {"prog", "run"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    KL_TEST_EXPECT_EXPR(cap.called);
+    KL_TEST_EXPECT_EXPR(!cap.force);
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "bare --help / unknown command with --help prints program help, rc 0");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+
+    KL_CLITestCapture cap = {0};
+    kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+      .name = KL_STR_CONST_LIT("run"),
+      .fn = kl_cli_test_help_dispatch_fn,
+      .user_ptr = &cap
+    });
+
+    char* argv_bare[] = {"prog", "--help"};
+    KL_TEST_EXPECT_EQ_INT(kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv_bare), argv_bare), 0);
+    KL_TEST_EXPECT_EXPR(!cap.called);
+
+    char* argv_unknown[] = {"prog", "nope", "-h"};
+    KL_TEST_EXPECT_EQ_INT(kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv_unknown), argv_unknown), 0);
+    KL_TEST_EXPECT_EXPR(!cap.called);
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+}

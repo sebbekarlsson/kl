@@ -307,6 +307,8 @@ void test_cli_get_arg_quoted_values(KL_TestFunctionContext* ctx);
 void test_cli_program_positionals(KL_TestFunctionContext* ctx);
 void test_cli_program_positional_defaults_and_required(KL_TestFunctionContext* ctx);
 void test_cli_program_typed_and_extra_positionals(KL_TestFunctionContext* ctx);
+void test_cli_program_deferred_options(KL_TestFunctionContext* ctx);
+void test_cli_program_help_dispatches_command(KL_TestFunctionContext* ctx);
 
 /* ===================== binary_pool (test_binary_pool.c) ===================== */
 void test_binary_pool_init_destroy();
@@ -334,6 +336,14 @@ void test_binary_pool_handle_rejects_recycled_slot();
 void test_binary_pool_handle_stale_release_is_noop();
 void test_binary_pool_handle_invalid_after_reset();
 void test_binary_pool_handle_generation_wraps();
+void test_binary_pool_fixed_does_not_grow_by_default();
+void test_binary_pool_grow_when_full_adds_chunk();
+void test_binary_pool_grow_keeps_existing_pointers_stable();
+void test_binary_pool_grow_keeps_handles_valid();
+void test_binary_pool_grow_prefers_freed_slots_over_growing();
+void test_binary_pool_reset_after_grow_keeps_capacity();
+void test_binary_pool_grow_slots_are_aligned_and_strided();
+void test_binary_pool_grow_release_across_chunks();
 
 /* ===================== eventbus (test_eventbus.c) ===================== */
 void test_eventbus_init_destroy();

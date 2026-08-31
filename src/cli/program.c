@@ -102,12 +102,13 @@ typedef enum {
 } ParseArgResult;
 
 // `out_raw` receives the raw supplied token (for error reporting) when the
-// option was present on the command line.
-static inline ParseArgResult parse_arg(KL_CLICommand* cmd, KL_CLIArgConfig argcfg, int argc, char* argv[], KL_CLIArgParsed* out, KL_StrConst* out_raw) {
+// option was present on the command line. `lenient` (help mode) keeps a
+// missing required arg from exit(1)-ing inside kl_cli_get_arg.
+static inline ParseArgResult parse_arg(KL_CLICommand* cmd, KL_CLIArgConfig argcfg, int argc, char* argv[], bool lenient, KL_CLIArgParsed* out, KL_StrConst* out_raw) {
   // A default value makes the argument optional: never let kl_cli_get_arg
   // exit(1) on a missing required arg when we have a fallback to apply.
   bool has_default = argcfg.default_value.type != KL_CLI_ARG_UNDEFINED;
-  KL_StrConst value = kl_cli_get_arg(argc, argv, argcfg.name, argcfg.required && !has_default);
+  KL_StrConst value = kl_cli_get_arg(argc, argv, argcfg.name, argcfg.required && !has_default && !lenient);
   if (value.length <= 0 || value.value == 0) {
     if (has_default) {
       *out = argcfg.default_value;
@@ -214,11 +215,38 @@ static bool str_contains_char(KL_StrConst str, char c) {
   return false;
 }
 
+// Parse one declared option against the given command line and record the
+// result in `parsed_args`. Returns false (after printing the error) when the
+// supplied value is invalid or a required option is absent; an absent
+// optional option is fine (kl_cli_command_get_* falls back). In `lenient`
+// (help) mode neither problem is an error — the command only runs to declare
+// its options and print help, so nothing may block the dispatch.
+static bool parse_and_record_option(KL_CLICommand* cmd, KL_CLIArgConfig arg_cfg, int argc, char* argv[], bool lenient) {
+  KL_CLIArgParsed parsed = {0};
+  KL_StrConst raw = {0};
+  ParseArgResult res = parse_arg(cmd, arg_cfg, argc, argv, lenient, &parsed, &raw);
+  if (res == PARSE_ARG_INVALID) {
+    if (lenient) return true;
+    fprintf(stderr, "Invalid value for option '--%.*s': '%.*s' is not a valid %s\n",
+            (int)arg_cfg.name.length, arg_cfg.name.value,
+            (int)raw.length, raw.value,
+            arg_type_name(arg_cfg.type));
+    return false;
+  }
+  if (res == PARSE_ARG_ABSENT) {
+    if (!arg_cfg.required || lenient) return true;
+    fprintf(stderr, "Missing required option: '--%.*s'\n", (int)arg_cfg.name.length, arg_cfg.name.value);
+    return false;
+  }
+  kl_cli_arg_parsed_list_push(&cmd->parsed_args, parsed);
+  return true;
+}
+
 // Collect the bare tokens following the command name and match them, in
 // order, against the command's declared positionals. Mirrors kl_cli_get_arg's
 // consumption rule: a bare token directly after a `--key` token (without `=`)
 // belongs to that option, not to the positionals.
-static bool parse_positionals(KL_CLICommand* cmd, int argc, char* argv[]) {
+static bool parse_positionals(KL_CLICommand* cmd, int argc, char* argv[], bool lenient) {
   int64_t pos_index = 0;
 
   for (int i = 2; i < argc; i++) {
@@ -240,11 +268,18 @@ static bool parse_positionals(KL_CLICommand* cmd, int argc, char* argv[]) {
       KL_CLIArgConfig cfg = cmd->config_positionals.items[pos_index];
       parsed.name = cfg.name;
       if (!parse_value(cfg.type, tok, &parsed)) {
-        fprintf(stderr, "Failed to parse positional argument '%.*s': '%.*s' is not a valid %s\n",
-                (int)cfg.name.length, cfg.name.value,
-                (int)tok.length, tok.value,
-                arg_type_name(cfg.type));
-        return false;
+        if (lenient) {
+          // Help mode: keep the raw token as a string so positional-based
+          // dispatch (e.g. a sub-command name) still sees it.
+          parsed.type = KL_CLI_ARG_STRING;
+          parsed.as.string = tok;
+        } else {
+          fprintf(stderr, "Failed to parse positional argument '%.*s': '%.*s' is not a valid %s\n",
+                  (int)cfg.name.length, cfg.name.value,
+                  (int)tok.length, tok.value,
+                  arg_type_name(cfg.type));
+          return false;
+        }
       }
     } else {
       // Tokens beyond the declared positionals are kept as plain strings.
@@ -266,7 +301,7 @@ static bool parse_positionals(KL_CLICommand* cmd, int argc, char* argv[]) {
       continue;
     }
 
-    if (cfg.required) {
+    if (cfg.required && !lenient) {
       fprintf(stderr, "Missing required positional argument: '%.*s'\n",
               (int)cfg.name.length, cfg.name.value);
       return false;
@@ -281,13 +316,18 @@ int kl_cli_program_run(KL_CLIProgram* program, int argc, char* argv[]) {
 
   const char* prog_name = (argc > 0 && argv[0] != 0) ? argv[0] : "program";
 
-  // `--help` / `-h` anywhere on the command line prints usage and stops.
+  // `--help` / `-h` anywhere on the command line requests help. When a
+  // command is named it is still dispatched — leniently parsed — so it can
+  // declare its deferred options before printing help (the command function
+  // is expected to call kl_cli_command_terminate_if_help); with no matching
+  // command the program-level help prints below.
+  bool help_requested = false;
   for (int i = 1; i < argc; i++) {
     KL_StrConst a = KL_STR_CONST(argv[i]);
     if (kl_str_const_eq(a, KL_STR_CONST_LIT("--help")) ||
         kl_str_const_eq(a, KL_STR_CONST_LIT("-h"))) {
-      print_help(program, prog_name, stdout);
-      return 0;
+      help_requested = true;
+      break;
     }
   }
 
@@ -305,29 +345,26 @@ int kl_cli_program_run(KL_CLIProgram* program, int argc, char* argv[]) {
     KL_CLICommand* cmd = (KL_CLICommand*)kl_binary_sparseset_get(&program->commands.set, idx);
     assert(cmd != 0);
     if (kl_str_const_eq(cmd_name, cmd->config.name)) {
-      if (!parse_positionals(cmd, argc, argv)) return 1;
+      // Remembered so options declared later — inside the command function —
+      // can still be parsed (see kl_cli_command_add_option).
+      cmd->argc = argc;
+      cmd->argv = argv;
+      cmd->help_requested = help_requested;
+
+      if (!parse_positionals(cmd, argc, argv, help_requested)) return 1;
 
       for (int64_t j = 0; j < cmd->config_args.length; j++) {
-        KL_CLIArgConfig arg_cfg = cmd->config_args.items[j];
-        KL_CLIArgParsed parsed = {0};
-        KL_StrConst raw = {0};
-        ParseArgResult res = parse_arg(cmd, arg_cfg, argc, argv, &parsed, &raw);
-        if (res == PARSE_ARG_INVALID) {
-          fprintf(stderr, "Invalid value for option '--%.*s': '%.*s' is not a valid %s\n",
-                  (int)arg_cfg.name.length, arg_cfg.name.value,
-                  (int)raw.length, raw.value,
-                  arg_type_name(arg_cfg.type));
-          return 1;
-        }
-        if (res == PARSE_ARG_ABSENT) {
-          if (!arg_cfg.required) continue;
-          fprintf(stderr, "Missing required option: '--%.*s'\n", (int)arg_cfg.name.length, arg_cfg.name.value);
-          return 1;
-        }
-        kl_cli_arg_parsed_list_push(&cmd->parsed_args, parsed);
+        if (!parse_and_record_option(cmd, cmd->config_args.items[j], argc, argv, help_requested)) return 1;
       }
       return cmd->config.fn(cmd);
     }
+  }
+
+  // No matching command: bare `prog --help` / `-h`, or an unknown name
+  // alongside the flag — fall back to the program-level help.
+  if (help_requested) {
+    print_help(program, prog_name, stdout);
+    return 0;
   }
 
   fprintf(stderr, "No such command: '%s'\n\n", cmd_name.value);
@@ -389,6 +426,16 @@ KL_CLICommand* kl_cli_command_add_option(KL_CLICommand* cmd, KL_CLIArgConfig cfg
 
   kl_cli_arg_config_list_push(&cmd->config_args, cfg);
 
+  // Deferred declaration: the command is already running (kl_cli_program_run
+  // stored the command line before dispatching), so the up-front parse loop
+  // has been and gone — parse this option now so it is immediately readable.
+  // In help mode stay lenient, like the up-front parse.
+  if (cmd->argv != 0) {
+    if (!parse_and_record_option(cmd, cfg, cmd->argc, cmd->argv, cmd->help_requested)) {
+      exit(1);
+    }
+  }
+
   return cmd;
 }
 
@@ -413,6 +460,47 @@ KL_CLICommand* kl_cli_command_add_positional(KL_CLICommand* cmd, KL_CLIArgConfig
   kl_cli_arg_config_list_push(&cmd->config_positionals, cfg);
 
   return cmd;
+}
+
+// Help for one command: usage line, description, then its positionals and
+// options — deferred options included, since this runs after the command
+// function has declared them.
+static void print_command_help(KL_CLICommand* cmd, FILE* out) {
+  const char* prog_name = (cmd->argc > 0 && cmd->argv != 0 && cmd->argv[0] != 0) ? cmd->argv[0] : "program";
+
+  fprintf(out, "Usage: %s %.*s", prog_name, (int)cmd->config.name.length, cmd->config.name.value);
+  for (int64_t i = 0; i < cmd->config_positionals.length; i++) {
+    KL_CLIArgConfig arg = cmd->config_positionals.items[i];
+    fprintf(out, arg.required ? " <%.*s>" : " [%.*s]", (int)arg.name.length, arg.name.value);
+  }
+  if (cmd->config_args.length > 0) fprintf(out, " [options]");
+  fprintf(out, "\n");
+
+  if (cmd->config.description.length > 0) {
+    fprintf(out, "\n  %.*s\n", (int)cmd->config.description.length, cmd->config.description.value);
+  }
+
+  if (cmd->config_positionals.length > 0) {
+    fprintf(out, "\nArguments:\n");
+    for (int64_t i = 0; i < cmd->config_positionals.length; i++) {
+      print_arg_help(out, cmd->config_positionals.items[i], "");
+    }
+  }
+
+  if (cmd->config_args.length > 0) {
+    fprintf(out, "\nOptions:\n");
+    for (int64_t i = 0; i < cmd->config_args.length; i++) {
+      print_arg_help(out, cmd->config_args.items[i], "--");
+    }
+  }
+}
+
+void kl_cli_command_terminate_if_help(KL_CLICommand* cmd) {
+  assert(cmd != 0);
+  assert(cmd->initialized);
+  if (!cmd->help_requested) return;
+  print_command_help(cmd, stdout);
+  exit(0);
 }
 
 int64_t kl_cli_command_positional_count(KL_CLICommand* cmd) {
