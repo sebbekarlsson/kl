@@ -219,7 +219,7 @@ void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id) {
 static int64_t kl_io_stream_write_(KL_IOStream* stream, int32_t type, KL_BlobAligned data, bool use_timeout, double timeout_ms) {
   assert(stream->initialized);
   KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, type);
-  if (funnel == 0) return -1;
+  if (funnel == 0 || funnel->sinks.taken_indices.length <= 0) return -1;
 
   assert(data.value != 0);
   assert(data.size == funnel->config.chunk.size);
