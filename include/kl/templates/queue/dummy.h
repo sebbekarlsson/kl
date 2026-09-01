@@ -29,6 +29,8 @@ bool kl_NAME_queue_push(KL_NAME_Queue* queue, T_X item);
 
 bool kl_NAME_queue_try_push(KL_NAME_Queue* queue, T_X item);
 
+bool kl_NAME_queue_try_push_timeout(KL_NAME_Queue* queue, T_X item, double timeout_ms);
+
 bool kl_NAME_queue_pop_first(KL_NAME_Queue* queue, T_X* out);
 
 bool kl_NAME_queue_pop_last(KL_NAME_Queue* queue, T_X* out);
@@ -40,6 +42,14 @@ bool kl_NAME_queue_try_pop_first(KL_NAME_Queue* queue, T_X* out);
 bool kl_NAME_queue_try_pop_last(KL_NAME_Queue* queue, T_X* out);
 
 bool kl_NAME_queue_try_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out);
+
+
+bool kl_NAME_queue_try_pop_first_timeout(KL_NAME_Queue* queue, T_X* out, double timeout_ms);
+
+bool kl_NAME_queue_try_pop_last_timeout(KL_NAME_Queue* queue, T_X* out, double timeout_ms);
+
+bool kl_NAME_queue_try_pop_at_timeout(KL_NAME_Queue* queue, int64_t idx, T_X* out, double timeout_ms);
+
 
 void kl_NAME_queue_grow(KL_NAME_Queue *queue, int64_t n_slots);
 #endif

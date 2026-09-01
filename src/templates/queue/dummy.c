@@ -106,12 +106,20 @@ bool kl_NAME_queue_push(KL_NAME_Queue *queue, T_X item) {
 
 
 bool kl_NAME_queue_try_push(KL_NAME_Queue* queue, T_X item) {
+  assert(queue->initialized);
   if (!kl_mutex_trylock(&queue->lock)) return false;
   bool ret = kl_NAME_queue_push_(queue, item);
   kl_mutex_unlock(&queue->lock);
   return ret;
 }
 
+bool kl_NAME_queue_try_push_timeout(KL_NAME_Queue* queue, T_X item, double timeout_ms) {
+  assert(queue->initialized);
+  if (!kl_mutex_trylock_timeout(&queue->lock, timeout_ms)) return false;
+  bool ret = kl_NAME_queue_push_(queue, item);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
 
 static inline bool kl_NAME_queue_pop_at_(KL_NAME_Queue *queue, int64_t idx, T_X *out) {
   assert(queue->initialized == true);
@@ -174,6 +182,27 @@ bool kl_NAME_queue_try_pop_last(KL_NAME_Queue* queue, T_X* out) {
 
 bool kl_NAME_queue_try_pop_at(KL_NAME_Queue* queue, int64_t idx, T_X* out) {
   if (!kl_mutex_trylock(&queue->lock)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, idx, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_first_timeout(KL_NAME_Queue* queue, T_X* out, double timeout_ms) {
+  if (!kl_mutex_trylock_timeout(&queue->lock, timeout_ms)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, 0, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_last_timeout(KL_NAME_Queue* queue, T_X* out, double timeout_ms) {
+  if (!kl_mutex_trylock_timeout(&queue->lock, timeout_ms)) return false;
+  bool ret = kl_NAME_queue_pop_at_(queue, queue->length - 1, out);
+  kl_mutex_unlock(&queue->lock);
+  return ret;
+}
+
+bool kl_NAME_queue_try_pop_at_timeout(KL_NAME_Queue* queue, int64_t idx, T_X* out, double timeout_ms) {
+  if (!kl_mutex_trylock_timeout(&queue->lock, timeout_ms)) return false;
   bool ret = kl_NAME_queue_pop_at_(queue, idx, out);
   kl_mutex_unlock(&queue->lock);
   return ret;

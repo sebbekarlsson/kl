@@ -29,6 +29,7 @@
 #include <kl/templates/sparse_set/dummy.h>
 #include <kl/templates/ringbuffer/f32_ringbuffer.h>
 #include <kl/templates/eventbus/eventbus.h>
+#include <kl/io/stream.h>
 #include <kl/binary/blob.h>
 #include <kl/binary/serial.h>
 #include <kl/io/fs.h>
@@ -492,5 +493,27 @@ void test_hash_uuidv4_format();
 void test_hash_uuidv4_deterministic();
 void test_hash_uuidv4_distinct();
 void test_hash_uuidv4_hex_uses_digits();
+
+/* ===================== io_stream (test_io_stream.c) ===================== */
+void test_io_stream_init_destroy();
+void test_io_stream_create_funnel_is_idempotent();
+void test_io_stream_funnel_pointers_stable_across_many_creates();
+void test_io_stream_create_sink_without_funnel_fails();
+void test_io_stream_write_without_sinks();
+void test_io_stream_write_read_round_trip();
+void test_io_stream_chunk_copy_is_independent_of_source();
+void test_io_stream_read_preserves_fifo_order();
+void test_io_stream_write_broadcasts_to_all_sinks();
+void test_io_stream_sinks_only_receive_their_type();
+void test_io_stream_full_sink_drops_newest();
+void test_io_stream_drain_sink();
+void test_io_stream_close_sink();
+void test_io_stream_sink_pool_grows_when_full();
+void test_io_stream_blob_arena_grows_beyond_approx_size();
+void test_io_stream_threads_single_writer_many_readers();
+void test_io_stream_threads_bounded_sink_backpressure();
+void test_io_stream_threads_multiple_writers_multiple_types();
+void test_io_stream_threads_create_close_sinks_while_writing();
+void test_io_stream_read_chunks();
 
 #endif
