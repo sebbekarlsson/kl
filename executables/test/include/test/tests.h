@@ -515,5 +515,8 @@ void test_io_stream_threads_bounded_sink_backpressure();
 void test_io_stream_threads_multiple_writers_multiple_types();
 void test_io_stream_threads_create_close_sinks_while_writing();
 void test_io_stream_read_chunks();
+void test_io_stream_write_timeout_uncontended_behaves_like_write();
+void test_io_stream_write_timeout_gives_up_when_funnel_is_locked();
+void test_io_stream_write_timeout_drops_only_the_locked_sink();
 
 #endif

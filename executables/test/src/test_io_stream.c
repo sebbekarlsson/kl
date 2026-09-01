@@ -750,3 +750,117 @@ void test_io_stream_read_chunks() {
   kl_io_stream_chunk_list_destroy(&out);
   kl_io_stream_destroy(&s);
 }
+
+// ---------- write_timeout ----------
+
+typedef struct {
+  KL_IOStream* stream;
+  double timeout_ms;
+  int64_t result;
+} KL_TestIOSTimeoutWriter;
+
+static void* kl_test_ios_timeout_writer_main(void* arg) {
+  KL_TestIOSTimeoutWriter* w = (KL_TestIOSTimeoutWriter*)arg;
+  KL_TestIOSMsgA msg = { .seq = 77, .tag = 0 };
+  w->result = kl_io_stream_write_timeout(w->stream, KL_TEST_IOS_TYPE_A,
+    KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgA, msg), w->timeout_ms);
+  return 0;
+}
+
+// Runs write_timeout on a separate thread (the kl mutex is recursive, so a
+// lock held by *this* thread would not block a write from this thread).
+static int64_t kl_test_ios_write_timeout_from_thread(KL_IOStream* s, double timeout_ms) {
+  KL_TestIOSTimeoutWriter w = { .stream = s, .timeout_ms = timeout_ms, .result = -99 };
+  pthread_t t;
+  KL_TEST_EXPECT_EQ_INT(pthread_create(&t, 0, kl_test_ios_timeout_writer_main, &w), 0);
+  pthread_join(t, 0);
+  return w.result;
+}
+
+void test_io_stream_write_timeout_uncontended_behaves_like_write() {
+  KL_IOStream s;
+  kl_test_ios_setup(&s, 4);
+
+  KL_TestIOSMsgA msg = { .seq = 5, .tag = 1 };
+  KL_BlobAligned data = KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgA, msg);
+
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_UNKNOWN, data, 1.0), -1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, 1.0), 0); // no sinks
+
+  int64_t a = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 2 });
+  int64_t b = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
+
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, 1.0), 2);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, 0.0), 2);  // 0 → trylock
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, -1.0), 1); // a is full now
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, a), 2);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, b), 3);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 5);
+
+  KL_IOStreamChunk chunk = {0};
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, b, 0, &chunk));
+  KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
+  KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, 5);
+  KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->tag, 1);
+  kl_io_stream_chunk_free(&s, &chunk);
+
+  kl_io_stream_destroy(&s);
+}
+
+void test_io_stream_write_timeout_gives_up_when_funnel_is_locked() {
+  KL_IOStream s;
+  kl_test_ios_setup(&s, 4);
+  int64_t sink = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
+  KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(&s, KL_TEST_IOS_TYPE_A);
+
+  // Simulate a stalled create/close/write holding the funnel's sink-set lock.
+  kl_mutex_lock(&funnel->lock);
+
+  long long t0 = kl_test_get_time_us();
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 5.0), -2);
+  long long elapsed_us = kl_test_get_time_us() - t0;
+  KL_TEST_ASSERT(elapsed_us >= 5000, "must have waited for the timeout before giving up");
+  KL_TEST_ASSERT(elapsed_us < 1000000, "must not block indefinitely");
+
+  // trylock variant (timeout <= 0) also gives up, immediately
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 0.0), -2);
+
+  // nothing was written, nothing leaked
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
+
+  kl_mutex_unlock(&funnel->lock);
+
+  // once released, the same write goes through
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 5.0), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 1);
+
+  kl_io_stream_destroy(&s);
+}
+
+void test_io_stream_write_timeout_drops_only_the_locked_sink() {
+  KL_IOStream s;
+  kl_test_ios_setup(&s, 4);
+  int64_t busy = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
+  int64_t free_ = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
+  KL_IOStreamSink* busy_sink = kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, busy);
+
+  // Simulate a reader that is stuck inside a pop on one sink.
+  kl_mutex_lock(&busy_sink->queue.lock);
+
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 5.0), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 0.0), 1);
+
+  kl_mutex_unlock(&busy_sink->queue.lock);
+
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, busy), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, free_), 2);
+  // the two copies dropped for the busy sink were freed
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 2);
+
+  // the funnel lock was released again: a plain blocking write works
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 1, 0), 2);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, busy), 1);
+
+  kl_io_stream_destroy(&s);
+}

@@ -130,6 +130,15 @@ void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id);
 // sinks that accepted the chunk; -1 if no funnel exists for `type`.
 int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned data);
 
+// Same as `kl_io_stream_write`, but never blocks indefinitely: the funnel lock
+// and each sink's queue lock are attempted with `timeout_ms` (<= 0 → a single
+// trylock each). If the funnel lock can't be taken in time nothing is written
+// and -2 is returned. If a sink's queue lock can't be taken in time the chunk
+// is dropped for that sink only (same as a full queue) and not counted.
+// Note: the blob allocator lock is still blocking; it is only ever held for
+// the duration of one malloc/free, never across a wait.
+int64_t kl_io_stream_write_timeout(KL_IOStream* stream, int32_t type, KL_BlobAligned data, double timeout_ms);
+
 // Pops the oldest chunk from a sink. Returns false if the sink is unknown, the
 // queue is empty, or the queue lock could not be taken within `timeout_ms`
 // (<= 0 → a single trylock). NOTE: the timeout bounds the wait for the *lock*,

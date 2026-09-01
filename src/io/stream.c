@@ -212,7 +212,11 @@ void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id) {
   kl_mutex_unlock(&funnel->lock);
 }
 
-int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned data) {
+// Shared broadcast path. With `use_timeout` false every lock is blocking;
+// with it true the funnel lock and each sink's queue lock are attempted with
+// `timeout_ms` (<= 0 → single trylock) and a lock that can't be taken in time
+// is treated as: funnel → give up (-2), sink → drop for that sink.
+static int64_t kl_io_stream_write_(KL_IOStream* stream, int32_t type, KL_BlobAligned data, bool use_timeout, double timeout_ms) {
   assert(stream->initialized);
   KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, type);
   if (funnel == 0) return -1;
@@ -225,13 +229,19 @@ int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned dat
 
   // The sink set must not change while we iterate it: create/close both take
   // this lock. Readers don't, so they keep popping while we broadcast.
-  kl_mutex_lock(&funnel->lock);
+  if (use_timeout) {
+    if (!kl_mutex_trylock_timeout(&funnel->lock, timeout_ms)) return -2;
+  } else {
+    kl_mutex_lock(&funnel->lock);
+  }
 
   for (int64_t i = 0; i < funnel->sinks.taken_indices.length; i++) {
     int64_t idx = funnel->sinks.taken_indices.items[i];
     KL_IOStreamSink* sink = (KL_IOStreamSink*)kl_binary_pool_get_slot(&funnel->sinks, idx);
     assert(sink != 0);
     assert(sink->initialized);
+    // Unlocked pre-check to skip the copy for an obviously full sink; the push
+    // below re-checks under the queue lock.
     if (sink->queue.length >= sink->config.max_queue_length) continue;
 
     // Each sink gets its own copy: the consumer of a chunk owns and frees it.
@@ -243,10 +253,15 @@ int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned dat
     assert(chunk.blob.value != 0);
     memcpy(chunk.blob.value, data.value, (size_t)data.size);
 
-    if (kl_io_stream_chunk_queue_push(&sink->queue, chunk)) {
+    bool pushed = use_timeout
+      ? kl_io_stream_chunk_queue_try_push_timeout(&sink->queue, chunk, timeout_ms)
+      : kl_io_stream_chunk_queue_push(&sink->queue, chunk);
+
+    if (pushed) {
       accepted += 1;
     } else {
-      // Queue is at max_length: drop this chunk for this sink.
+      // Queue is at max_length (or, with a timeout, its lock was busy): drop
+      // this chunk for this sink.
       kl_allocator_free_allocation(&stream->blob_allocator, chunk.blob_allocation);
     }
   }
@@ -254,6 +269,14 @@ int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned dat
   kl_mutex_unlock(&funnel->lock);
 
   return accepted;
+}
+
+int64_t kl_io_stream_write(KL_IOStream* stream, int32_t type, KL_BlobAligned data) {
+  return kl_io_stream_write_(stream, type, data, false, 0.0);
+}
+
+int64_t kl_io_stream_write_timeout(KL_IOStream* stream, int32_t type, KL_BlobAligned data, double timeout_ms) {
+  return kl_io_stream_write_(stream, type, data, true, timeout_ms);
 }
 
 
