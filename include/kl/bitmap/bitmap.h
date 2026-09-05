@@ -60,7 +60,10 @@ void kl_bitmap_fill_f32(KL_Bitmap* bm, float pixel[4]);
 
 KL_Vec4 kl_bitmap_get(KL_Bitmap* bm, KL_Vec2 uv);
 
+KL_Vec3 kl_bitmap_get_rgb(KL_Bitmap* bm, KL_Vec2 uv);
+
 KL_Vec4 kl_bitmap_set(KL_Bitmap* bm, KL_Vec2 uv, KL_Vec4 pixel);
+
 
 /**
 * Save as ppm file
@@ -77,6 +80,7 @@ typedef struct KL_BitmapProcessConfig {
   KL_Bitmap* bitmap;
   int32_t num_workers;
   KL_BitmapProcessFunction fn;
+  void* user_ptr; // passed through untouched to fn (per-run parameters)
   struct {
     KL_bitmap_List inputs; // read-only inputs
     KL_bitmap_List outputs; // write-only outputs

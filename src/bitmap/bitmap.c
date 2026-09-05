@@ -2,6 +2,7 @@
 #include <kl/macros.h>
 #include <kl/common/number.h>
 #include <kl/threads/util.h>
+#include <kl/math/macros.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -177,6 +178,14 @@ KL_Vec4 kl_bitmap_get(KL_Bitmap* bm, KL_Vec2 uv) {
   kl_bitmap_read_f32(bm, x, y, out.items);
 
   return out;
+}
+
+
+KL_Vec3 kl_bitmap_get_rgb(KL_Bitmap* bm, KL_Vec2 uv) {
+  assert(bm->initialized);
+  assert(bm->data != 0);
+  KL_Vec4 v4 = kl_bitmap_get(bm, uv);
+  return kl_vec3(v4.x, v4.y, v4.z);
 }
 
 KL_Vec4 kl_bitmap_set(KL_Bitmap* bm, KL_Vec2 uv, KL_Vec4 pixel) {
