@@ -2,6 +2,10 @@
 #include <pthread.h>
 #include <sched.h>
 #include <stdalign.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+#include <kl/time/time.h>
 
 // ---------- io_stream ----------
 
@@ -910,6 +914,320 @@ void test_io_stream_sink_ids_unique_across_funnels() {
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 2, 0), 1);
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a2), 1);
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, b), 0);
+
+  kl_io_stream_destroy(&s);
+}
+
+// ---------- stress: thousands of sinks churned per frame ----------
+//
+// Models a real-time loop: writers broadcast in short bursts (like a physics
+// tick that emits a handful of events then moves on) while several "systems"
+// (worker threads) each open a batch of sinks at the start of a frame, read
+// whatever landed, and close them again before the next frame.
+//
+// NOTE: the writers deliberately pause between bursts. A writer that spins on
+// `kl_io_stream_write` without ever leaving the funnel lock idle starves
+// create/close_sink (the lock is not fair, and a broadcast to N sinks holds it
+// for O(N)); that is a known limitation, not something this test measures. Verifies
+// correctness from the worker side (type/size/alignment/order, stale ids never
+// resolve), id uniqueness across the whole run, that every resource is back
+// where it started once the sinks are gone, and that the stream's footprint is
+// bounded by the peak number of live sinks rather than by the total churned.
+
+enum {
+  KL_TEST_IOS_STRESS_WORKERS_PER_TYPE = 4,
+  KL_TEST_IOS_STRESS_SINKS_PER_FRAME = 250,   // per worker → 2000 live sinks per frame
+  KL_TEST_IOS_STRESS_FRAMES = 6,
+  KL_TEST_IOS_STRESS_QUEUE_LENGTH = 4,
+  KL_TEST_IOS_STRESS_WRITER_BURST = 8,        // writes per burst
+  KL_TEST_IOS_STRESS_WRITER_PAUSE_US = 50,    // idle between bursts (~20k bursts/s, far above any tick rate)
+};
+
+typedef struct {
+  KL_IOStream* stream;
+  int32_t type;
+  int64_t chunk_size;
+  pthread_barrier_t* frame_barrier;
+  // results
+  int64_t created;
+  int64_t create_failures;
+  int64_t closed;
+  int64_t chunks_read;
+  int64_t wrong_type;
+  int64_t wrong_size;
+  int64_t misaligned;
+  int64_t reordered;
+  int64_t stale_resolved;   // a closed id that still resolved / still read
+  int64_t never_delivered;  // frames where the writer never reached this worker's first sink
+  double create_ms;
+  double close_ms;
+  double read_ms;
+  KL_int64_List ids;        // every id this worker was ever handed
+} KL_TestIOSStressWorker;
+
+static void* kl_test_ios_stress_worker_main(void* arg) {
+  KL_TestIOSStressWorker* w = (KL_TestIOSStressWorker*)arg;
+  int64_t sinks[KL_TEST_IOS_STRESS_SINKS_PER_FRAME];
+
+  for (int frame = 0; frame < KL_TEST_IOS_STRESS_FRAMES; frame++) {
+    pthread_barrier_wait(w->frame_barrier); // frame start
+
+    double t0 = kl_time_now_ms__monotonic();
+    for (int i = 0; i < KL_TEST_IOS_STRESS_SINKS_PER_FRAME; i++) {
+      sinks[i] = kl_io_stream_create_sink(w->stream, (KL_IOStreamSinkConfig){
+        .type = w->type, .max_queue_length = KL_TEST_IOS_STRESS_QUEUE_LENGTH,
+      });
+      if (sinks[i] < 0) { w->create_failures += 1; continue; }
+      w->created += 1;
+      kl_int64_list_push(&w->ids, sinks[i]);
+    }
+    double t1 = kl_time_now_ms__monotonic();
+
+    // Wait (bounded) until the writer has reached at least the first sink of
+    // this batch, so "the writers deliver to every worker every frame" holds
+    // regardless of scheduling; then read every sink once.
+    {
+      double deadline = kl_time_now_ms__monotonic() + 500.0;
+      while (sinks[0] >= 0 && kl_io_stream_sink_length(w->stream, sinks[0]) <= 0) {
+        if (kl_time_now_ms__monotonic() > deadline) { w->never_delivered += 1; break; }
+        sched_yield();
+      }
+    }
+    for (int i = 0; i < KL_TEST_IOS_STRESS_SINKS_PER_FRAME; i++) {
+      if (sinks[i] < 0) continue;
+      int64_t last_seq = -1;
+      KL_IOStreamChunk chunk = {0};
+      while (kl_io_stream_read_chunk(w->stream, sinks[i], 0, &chunk)) {
+        if (chunk.type != w->type) w->wrong_type += 1;
+        if (chunk.blob.size != w->chunk_size) w->wrong_size += 1;
+        if (((uintptr_t)chunk.blob.value) % 32 != 0 && w->type == KL_TEST_IOS_TYPE_B) w->misaligned += 1;
+        if (w->type == KL_TEST_IOS_TYPE_A) {
+          KL_TestIOSMsgA* msg = (KL_TestIOSMsgA*)chunk.blob.value;
+          if (msg->tag != w->type) w->wrong_type += 1;
+          if (msg->seq <= last_seq) w->reordered += 1; // gaps allowed (drops), reordering not
+          last_seq = msg->seq;
+        }
+        w->chunks_read += 1;
+        kl_io_stream_chunk_free(w->stream, &chunk);
+      }
+    }
+    double t2 = kl_time_now_ms__monotonic();
+
+    // Close in reverse so the pool's free list and the ref map see a different
+    // order than they were filled in. Sinks still hold queued chunks here, so
+    // this also exercises free-on-close under live writers.
+    for (int i = KL_TEST_IOS_STRESS_SINKS_PER_FRAME - 1; i >= 0; i--) {
+      if (sinks[i] < 0) continue;
+      kl_io_stream_close_sink(w->stream, sinks[i]);
+      w->closed += 1;
+    }
+    double t3 = kl_time_now_ms__monotonic();
+
+    // Every id from this frame must now be dead, even though the pool slots
+    // are already being recycled by other workers.
+    for (int i = 0; i < KL_TEST_IOS_STRESS_SINKS_PER_FRAME; i++) {
+      if (sinks[i] < 0) continue;
+      KL_IOStreamChunk chunk = {0};
+      if (kl_io_stream_get_sink(w->stream, sinks[i]) != 0) w->stale_resolved += 1;
+      if (kl_io_stream_sink_length(w->stream, sinks[i]) != -1) w->stale_resolved += 1;
+      if (kl_io_stream_read_chunk(w->stream, sinks[i], 0, &chunk)) w->stale_resolved += 1;
+    }
+
+    w->create_ms += t1 - t0;
+    w->read_ms += t2 - t1;
+    w->close_ms += t3 - t2;
+
+    pthread_barrier_wait(w->frame_barrier); // frame end
+  }
+  return 0;
+}
+
+typedef struct {
+  KL_IOStream* stream;
+  int32_t type;
+  volatile bool* stop;
+  int64_t writes;
+  int64_t accepted;
+  int64_t errors;
+} KL_TestIOSStressWriter;
+
+static void* kl_test_ios_stress_writer_main(void* arg) {
+  KL_TestIOSStressWriter* w = (KL_TestIOSStressWriter*)arg;
+  int64_t seq = 0;
+  while (!*w->stop) {
+    if (seq % KL_TEST_IOS_STRESS_WRITER_BURST == 0) {
+      struct timespec pause = { .tv_sec = 0, .tv_nsec = KL_TEST_IOS_STRESS_WRITER_PAUSE_US * 1000L };
+      nanosleep(&pause, 0);
+    }
+    int64_t r;
+    if (w->type == KL_TEST_IOS_TYPE_A) {
+      KL_TestIOSMsgA msg = { .seq = seq++, .tag = KL_TEST_IOS_TYPE_A };
+      r = kl_io_stream_write(w->stream, KL_TEST_IOS_TYPE_A, KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgA, msg));
+    } else {
+      KL_TestIOSMsgB msg = { .v = { (double)seq, 1, 2, 3 } };
+      seq++;
+      r = kl_io_stream_write(w->stream, KL_TEST_IOS_TYPE_B, KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgB, msg));
+    }
+    if (r < 0) { w->errors += 1; continue; }
+    w->writes += 1;
+    w->accepted += r;
+  }
+  return 0;
+}
+
+static int kl_test_ios_cmp_int64(const void* a, const void* b) {
+  int64_t x = *(const int64_t*)a, y = *(const int64_t*)b;
+  return (x > y) - (x < y);
+}
+
+static int64_t kl_test_ios_sink_ref_count(KL_IOStream* s) {
+  int64_t n = 0;
+  for (int64_t i = 0; i < s->sink_refs.slots.length; i++) {
+    if (s->sink_refs.slots.items[i].is_set) n += 1;
+  }
+  return n;
+}
+
+void test_io_stream_stress_sink_churn_per_frame() {
+  enum {
+    WORKERS = KL_TEST_IOS_STRESS_WORKERS_PER_TYPE * 2,
+    PEAK_LIVE_SINKS_PER_TYPE = KL_TEST_IOS_STRESS_WORKERS_PER_TYPE * KL_TEST_IOS_STRESS_SINKS_PER_FRAME,
+    PEAK_LIVE_SINKS = PEAK_LIVE_SINKS_PER_TYPE * 2,
+    TOTAL_SINKS = PEAK_LIVE_SINKS * KL_TEST_IOS_STRESS_FRAMES,
+  };
+
+  KL_IOStream s;
+  kl_test_ios_setup(&s, 16); // tiny initial pool + arena so everything has to grow under load
+
+  volatile bool stop = false;
+  KL_TestIOSStressWriter writers[2] = {
+    { .stream = &s, .type = KL_TEST_IOS_TYPE_A, .stop = &stop },
+    { .stream = &s, .type = KL_TEST_IOS_TYPE_B, .stop = &stop },
+  };
+  pthread_t wts[2];
+  for (int i = 0; i < 2; i++) {
+    KL_TEST_EXPECT_EQ_INT(pthread_create(&wts[i], 0, kl_test_ios_stress_writer_main, &writers[i]), 0);
+  }
+
+  pthread_barrier_t barrier;
+  pthread_barrier_init(&barrier, 0, WORKERS + 1); // +1: this thread samples between frames
+
+  KL_TestIOSStressWorker workers[WORKERS] = {0};
+  pthread_t ts[WORKERS];
+  for (int i = 0; i < WORKERS; i++) {
+    bool is_a = i < KL_TEST_IOS_STRESS_WORKERS_PER_TYPE;
+    workers[i] = (KL_TestIOSStressWorker){
+      .stream = &s,
+      .type = is_a ? KL_TEST_IOS_TYPE_A : KL_TEST_IOS_TYPE_B,
+      .chunk_size = is_a ? (int64_t)sizeof(KL_TestIOSMsgA) : (int64_t)sizeof(KL_TestIOSMsgB),
+      .frame_barrier = &barrier,
+    };
+    kl_int64_list_init(&workers[i].ids, (KL_ListConfig){ .capacity = KL_TEST_IOS_STRESS_SINKS_PER_FRAME * KL_TEST_IOS_STRESS_FRAMES });
+    KL_TEST_EXPECT_EQ_INT(pthread_create(&ts[i], 0, kl_test_ios_stress_worker_main, &workers[i]), 0);
+  }
+
+  // Drive the frames. Between frames every sink is closed, so the stream must
+  // be back at "empty" each time. (Capacity is allowed to keep growing towards
+  // the per-frame peak for a few frames — how many sinks are live at once
+  // depends on thread timing — the bounds at the end cap it.)
+  double frame_ms_max = 0;
+  double t_start = kl_time_now_ms__monotonic();
+  for (int frame = 0; frame < KL_TEST_IOS_STRESS_FRAMES; frame++) {
+    double f0 = kl_time_now_ms__monotonic();
+    pthread_barrier_wait(&barrier); // frame start
+    pthread_barrier_wait(&barrier); // frame end
+    double f1 = kl_time_now_ms__monotonic();
+    if (f1 - f0 > frame_ms_max) frame_ms_max = f1 - f0;
+
+    KL_IOStreamSinkFunnel* fa = kl_io_stream_get_funnel(&s, KL_TEST_IOS_TYPE_A);
+    KL_IOStreamSinkFunnel* fb = kl_io_stream_get_funnel(&s, KL_TEST_IOS_TYPE_B);
+    KL_TEST_EXPECT_EQ_INT(fa->sinks.taken_indices.length, 0);
+    KL_TEST_EXPECT_EQ_INT(fb->sinks.taken_indices.length, 0);
+    KL_TEST_EXPECT_EQ_INT(kl_test_ios_sink_ref_count(&s), 0);
+    KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
+  }
+  double total_ms = kl_time_now_ms__monotonic() - t_start;
+
+  for (int i = 0; i < WORKERS; i++) pthread_join(ts[i], 0);
+  stop = true;
+  for (int i = 0; i < 2; i++) pthread_join(wts[i], 0);
+  pthread_barrier_destroy(&barrier);
+
+  // ---- behaviour ----
+  int64_t created = 0, closed = 0, chunks_read = 0;
+  double create_ms = 0, close_ms = 0, read_ms = 0;
+  KL_int64_List all_ids = {0};
+  kl_int64_list_init(&all_ids, (KL_ListConfig){ .capacity = TOTAL_SINKS });
+  for (int i = 0; i < WORKERS; i++) {
+    KL_TestIOSStressWorker* w = &workers[i];
+    KL_TEST_EXPECT_EQ_INT(w->create_failures, 0);
+    KL_TEST_EXPECT_EQ_INT(w->created, KL_TEST_IOS_STRESS_SINKS_PER_FRAME * KL_TEST_IOS_STRESS_FRAMES);
+    KL_TEST_EXPECT_EQ_INT(w->closed, w->created);
+    KL_TEST_EXPECT_EQ_INT(w->wrong_type, 0);
+    KL_TEST_EXPECT_EQ_INT(w->wrong_size, 0);
+    KL_TEST_EXPECT_EQ_INT(w->misaligned, 0);
+    KL_TEST_EXPECT_EQ_INT(w->reordered, 0);
+    KL_TEST_EXPECT_EQ_INT(w->stale_resolved, 0);
+    KL_TEST_EXPECT_EQ_INT(w->never_delivered, 0);
+    KL_TEST_EXPECT_EXPR(w->chunks_read > 0); // the writers did reach this worker's sinks
+    created += w->created; closed += w->closed; chunks_read += w->chunks_read;
+    create_ms += w->create_ms; close_ms += w->close_ms; read_ms += w->read_ms;
+    for (int64_t j = 0; j < w->ids.length; j++) kl_int64_list_push(&all_ids, w->ids.items[j]);
+    kl_int64_list_destroy(&w->ids);
+  }
+  KL_TEST_EXPECT_EQ_INT(created, TOTAL_SINKS);
+  KL_TEST_EXPECT_EQ_INT(closed, TOTAL_SINKS);
+  for (int i = 0; i < 2; i++) {
+    KL_TEST_EXPECT_EQ_INT(writers[i].errors, 0);
+    KL_TEST_EXPECT_EXPR(writers[i].writes > 0);
+    KL_TEST_EXPECT_EXPR(writers[i].accepted > 0);
+  }
+
+  // Every id handed out during the run is unique, even though pool slots were
+  // recycled thousands of times.
+  KL_TEST_EXPECT_EQ_INT(all_ids.length, TOTAL_SINKS);
+  qsort(all_ids.items, (size_t)all_ids.length, sizeof(int64_t), kl_test_ios_cmp_int64);
+  int64_t duplicate_ids = 0;
+  for (int64_t i = 1; i < all_ids.length; i++) {
+    if (all_ids.items[i] == all_ids.items[i - 1]) duplicate_ids += 1;
+  }
+  KL_TEST_EXPECT_EQ_INT(duplicate_ids, 0);
+  KL_TEST_EXPECT_EQ_INT(s.next_sink_id, TOTAL_SINKS);
+  kl_int64_list_destroy(&all_ids);
+
+  // ---- no leaks: everything is back at zero, and the footprint is bounded
+  // by the per-frame peak, not by the total number of sinks churned ----
+  KL_IOStreamSinkFunnel* fa = kl_io_stream_get_funnel(&s, KL_TEST_IOS_TYPE_A);
+  KL_IOStreamSinkFunnel* fb = kl_io_stream_get_funnel(&s, KL_TEST_IOS_TYPE_B);
+  KL_TEST_EXPECT_EQ_INT(fa->sinks.taken_indices.length, 0);
+  KL_TEST_EXPECT_EQ_INT(fb->sinks.taken_indices.length, 0);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_sink_ref_count(&s), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
+  // pool: at most one growth step of slack above the peak
+  KL_TEST_EXPECT_EXPR(fa->sinks.capacity < PEAK_LIVE_SINKS_PER_TYPE + 2 * s.config.sink_count_capacity);
+  KL_TEST_EXPECT_EXPR(fb->sinks.capacity < PEAK_LIVE_SINKS_PER_TYPE + 2 * s.config.sink_count_capacity);
+  // ref map: unset slots are reused within their chain, so the slot array is
+  // bounded by the per-bucket peaks (which sum to at most a small multiple of
+  // the global peak), never by the total number of ids ever inserted.
+  KL_TEST_EXPECT_EXPR(s.sink_refs.slots.length <= s.sink_refs.capacity_pow2 + 2 * PEAK_LIVE_SINKS);
+  KL_TEST_EXPECT_EXPR(s.sink_refs.slots.length < TOTAL_SINKS / 2);
+  // blob allocator: tracked slots are recycled, so their count is bounded by
+  // the peak number of chunks that can be queued at once (+ writers in flight)
+  KL_TEST_EXPECT_EXPR(s.blob_allocator.allocations.length <= PEAK_LIVE_SINKS * KL_TEST_IOS_STRESS_QUEUE_LENGTH + 2);
+  KL_TEST_EXPECT_EXPR(s.blob_allocator.allocations.n_reused > 0);
+
+  // ---- performance (loose bounds; the numbers are printed for eyeballing) ----
+  double per_create_us = create_ms * 1000.0 / (double)created;
+  double per_close_us = close_ms * 1000.0 / (double)closed;
+  printf("    [stress] %d sinks over %d frames (%d live/frame), %ld chunks read, %ld writes\n",
+         (int)TOTAL_SINKS, (int)KL_TEST_IOS_STRESS_FRAMES, (int)PEAK_LIVE_SINKS,
+         (long)chunks_read, (long)(writers[0].writes + writers[1].writes));
+  printf("    [stress] total %.1fms, worst frame %.1fms, create %.2fus/sink, close %.2fus/sink (per-thread, under contention)\n",
+         total_ms, frame_ms_max, per_create_us, per_close_us);
+  // Generous so CI noise can't trip them; the printed numbers are the real signal.
+  KL_TEST_EXPECT_EXPR(per_create_us < 2000.0);
+  KL_TEST_EXPECT_EXPR(per_close_us < 2000.0);
+  KL_TEST_EXPECT_EXPR(frame_ms_max < 2000.0);
 
   kl_io_stream_destroy(&s);
 }
