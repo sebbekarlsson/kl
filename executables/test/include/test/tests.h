@@ -518,5 +518,6 @@ void test_io_stream_read_chunks();
 void test_io_stream_write_timeout_uncontended_behaves_like_write();
 void test_io_stream_write_timeout_gives_up_when_funnel_is_locked();
 void test_io_stream_write_timeout_drops_only_the_locked_sink();
+void test_io_stream_sink_ids_unique_across_funnels();
 
 #endif

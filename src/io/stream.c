@@ -9,6 +9,7 @@
 KL_IMPL_QUEUE(io_stream_chunk, KL_IOStreamChunk);
 KL_IMPL_LIST(io_stream_chunk, KL_IOStreamChunk);
 KL_IMPL_HASHMAP(io_stream_sink_funnel, KL_IOStreamSinkFunnelPtr);
+KL_IMPL_HASHMAP(io_stream_sink_ref, KL_IOStreamSinkRef);
 
 
 void kl_io_stream_init(KL_IOStream* stream, KL_IOStreamConfig cfg) {
@@ -32,6 +33,14 @@ void kl_io_stream_init(KL_IOStream* stream, KL_IOStreamConfig cfg) {
   });
 
   kl_mutex_init(&stream->funnels_lock);
+
+  kl_io_stream_sink_ref_hashmap_init(&stream->sink_refs, (KL_HashmapConfig){
+    .capacity = KL_MAX(cfg.sink_count_capacity * cfg.funnel_count_capacity, 64) * 2 + 7,
+    .collision_capacity = 4,
+    .track_used_slots = false
+  });
+  kl_mutex_init(&stream->sink_refs_lock);
+  stream->next_sink_id = 0;
 
   stream->initialized = true;
 }
@@ -77,6 +86,8 @@ void kl_io_stream_destroy(KL_IOStream* stream) {
 
   kl_io_stream_sink_funnel_hashmap_destroy(&stream->funnels);
   kl_mutex_destroy(&stream->funnels_lock);
+  kl_io_stream_sink_ref_hashmap_destroy(&stream->sink_refs);
+  kl_mutex_destroy(&stream->sink_refs_lock);
   kl_allocator_destroy(&stream->blob_allocator);
 
   memset(stream, 0, sizeof(KL_IOStream));
@@ -151,20 +162,31 @@ int64_t kl_io_stream_create_sink(KL_IOStream* stream, KL_IOStreamSinkConfig cfg)
   kl_mutex_lock(&funnel->lock);
 
   uint8_t* raw = 0;
-  int64_t id = kl_binary_pool_acquire(&funnel->sinks, &raw);
+  int64_t pool_handle = kl_binary_pool_acquire(&funnel->sinks, &raw);
   assert(raw != 0);
-  assert(id >= 0);
+  assert(pool_handle >= 0);
 
   // Slot memory is zeroed by the pool on first use and by close_sink on
   // release, so the queue's `initialized` flag is false here.
   KL_IOStreamSink* sink = (KL_IOStreamSink*)raw;
   assert(!sink->initialized);
   sink->config = cfg;
-  sink->id = id;
+  sink->pool_handle = pool_handle;
   kl_io_stream_chunk_queue_init(&sink->queue, (KL_QueueConfig){
     .capacity = cfg.max_queue_length,
     .max_length = cfg.max_queue_length,
   });
+
+  // Mint the public id and publish the id -> (funnel, slot) mapping. Nested
+  // inside the funnel lock so the sink is fully described before any reader
+  // can resolve it (funnel lock -> sink-ref lock, same order as close_sink).
+  kl_mutex_lock(&stream->sink_refs_lock);
+  int64_t id = stream->next_sink_id++;
+  sink->id = id;
+  kl_io_stream_sink_ref_hashmap_set(&stream->sink_refs, KL_BLOB_RAW_T(int64_t, id),
+    (KL_IOStreamSinkRef){ .type = cfg.type, .pool_handle = pool_handle });
+  kl_mutex_unlock(&stream->sink_refs_lock);
+
   sink->initialized = true;
 
   kl_mutex_unlock(&funnel->lock);
@@ -172,26 +194,41 @@ int64_t kl_io_stream_create_sink(KL_IOStream* stream, KL_IOStreamSinkConfig cfg)
   return id;
 }
 
+// Looks up where a sink id lives. Returns false for a negative, unknown or
+// closed id.
+static bool kl_io_stream_resolve_sink_(KL_IOStream* stream, int64_t id, KL_IOStreamSinkRef* out) {
+  if (id < 0) return false;
+  kl_mutex_lock(&stream->sink_refs_lock);
+  bool found = kl_io_stream_sink_ref_hashmap_get(&stream->sink_refs, KL_BLOB_RAW_T(int64_t, id), out) != 0;
+  kl_mutex_unlock(&stream->sink_refs_lock);
+  return found;
+}
 
-KL_IOStreamSink* kl_io_stream_get_sink(KL_IOStream* stream, int32_t type, int64_t id) {
+KL_IOStreamSink* kl_io_stream_get_sink(KL_IOStream* stream, int64_t id) {
   assert(stream->initialized);
-  if (id < 0) return 0;
-  KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, type);
+  KL_IOStreamSinkRef ref = {0};
+  if (!kl_io_stream_resolve_sink_(stream, id, &ref)) return 0;
+  KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, ref.type);
   if (funnel == 0) return 0;
 
-  return (KL_IOStreamSink*)kl_binary_pool_get(&funnel->sinks, id);
+  return (KL_IOStreamSink*)kl_binary_pool_get(&funnel->sinks, ref.pool_handle);
 }
 
 
-void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id) {
+void kl_io_stream_close_sink(KL_IOStream* stream, int64_t id) {
   assert(stream->initialized);
-  KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, type);
+  KL_IOStreamSinkRef ref = {0};
+  if (!kl_io_stream_resolve_sink_(stream, id, &ref)) return;
+  KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, ref.type);
   if (funnel == 0) return;
 
   kl_mutex_lock(&funnel->lock);
 
-  KL_IOStreamSink* sink = (KL_IOStreamSink*)kl_binary_pool_get(&funnel->sinks, id);
-  if (sink == 0) {
+  // The pool handle is generational, so if the sink was already closed (and
+  // its slot possibly recycled) between the resolve above and taking the
+  // funnel lock, this comes back empty.
+  KL_IOStreamSink* sink = (KL_IOStreamSink*)kl_binary_pool_get(&funnel->sinks, ref.pool_handle);
+  if (sink == 0 || sink->id != id) {
     kl_mutex_unlock(&funnel->lock);
     return;
   }
@@ -207,7 +244,11 @@ void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id) {
   kl_io_stream_chunk_queue_destroy(&sink->queue);
   memset(sink, 0, sizeof(KL_IOStreamSink));
 
-  kl_binary_pool_release(&funnel->sinks, id);
+  kl_binary_pool_release(&funnel->sinks, ref.pool_handle);
+
+  kl_mutex_lock(&stream->sink_refs_lock);
+  kl_io_stream_sink_ref_hashmap_unset(&stream->sink_refs, KL_BLOB_RAW_T(int64_t, id));
+  kl_mutex_unlock(&stream->sink_refs_lock);
 
   kl_mutex_unlock(&funnel->lock);
 }
@@ -219,7 +260,11 @@ void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id) {
 static int64_t kl_io_stream_write_(KL_IOStream* stream, int32_t type, KL_BlobAligned data, bool use_timeout, double timeout_ms) {
   assert(stream->initialized);
   KL_IOStreamSinkFunnel* funnel = kl_io_stream_get_funnel(stream, type);
-  if (funnel == 0 || funnel->sinks.taken_indices.length <= 0) return -1;
+  if (funnel == 0) return -1;
+  // No sinks to deliver to: skip the lock + copy entirely. Unlocked read of
+  // the length; a sink created concurrently simply misses this write, which
+  // is the same outcome as it being created a moment later.
+  if (funnel->sinks.taken_indices.length <= 0) return 0;
 
   assert(data.value != 0);
   assert(data.size == funnel->config.chunk.size);
@@ -280,16 +325,16 @@ int64_t kl_io_stream_write_timeout(KL_IOStream* stream, int32_t type, KL_BlobAli
 }
 
 
-bool kl_io_stream_read_chunk(KL_IOStream* stream, int32_t type, int64_t sink_id, double timeout_ms, KL_IOStreamChunk* out) {
+bool kl_io_stream_read_chunk(KL_IOStream* stream, int64_t sink_id, double timeout_ms, KL_IOStreamChunk* out) {
   assert(stream->initialized);
   assert(out != 0);
-  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, type, sink_id);
+  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, sink_id);
   if (sink == 0) return false;
   assert(sink->initialized);
   return kl_io_stream_chunk_queue_try_pop_first_timeout(&sink->queue, out, timeout_ms);
 }
 
-bool kl_io_stream_read_chunks(KL_IOStream* stream, int32_t type, int64_t sink_id, double timeout_ms, int64_t limit, KL_io_stream_chunk_List* out) {
+bool kl_io_stream_read_chunks(KL_IOStream* stream, int64_t sink_id, double timeout_ms, int64_t limit, KL_io_stream_chunk_List* out) {
   assert(stream->initialized);
   assert(out != 0);
   assert(out->initialized);
@@ -298,7 +343,7 @@ bool kl_io_stream_read_chunks(KL_IOStream* stream, int32_t type, int64_t sink_id
 
   for (int64_t i = 0; i < limit; i++) {
     KL_IOStreamChunk chunk = {0};
-    if (!kl_io_stream_read_chunk(stream, type, sink_id, timeout_ms, &chunk)) {
+    if (!kl_io_stream_read_chunk(stream, sink_id, timeout_ms, &chunk)) {
       // Sink is empty (or unknown / lock timed out): nothing more to take.
       break;
     }
@@ -317,9 +362,9 @@ void kl_io_stream_chunk_free(KL_IOStream* stream, KL_IOStreamChunk* chunk) {
   memset(chunk, 0, sizeof(KL_IOStreamChunk));
 }
 
-void kl_io_stream_drain_sink(KL_IOStream* stream, int32_t type, int64_t sink_id) {
+void kl_io_stream_drain_sink(KL_IOStream* stream, int64_t sink_id) {
   assert(stream->initialized);
-  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, type, sink_id);
+  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, sink_id);
   if (sink == 0) return;
 
   kl_mutex_lock(&sink->queue.lock);
@@ -327,9 +372,9 @@ void kl_io_stream_drain_sink(KL_IOStream* stream, int32_t type, int64_t sink_id)
   kl_mutex_unlock(&sink->queue.lock);
 }
 
-int64_t kl_io_stream_sink_length(KL_IOStream* stream, int32_t type, int64_t sink_id) {
+int64_t kl_io_stream_sink_length(KL_IOStream* stream, int64_t sink_id) {
   assert(stream->initialized);
-  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, type, sink_id);
+  KL_IOStreamSink* sink = kl_io_stream_get_sink(stream, sink_id);
   if (sink == 0) return -1;
 
   kl_mutex_lock(&sink->queue.lock);

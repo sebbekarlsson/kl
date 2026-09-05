@@ -456,6 +456,7 @@ static const KL_TestEntry TEST_ENTRIES[] = {
   KL_TEST_ENTRY(test_io_stream_write_timeout_uncontended_behaves_like_write),
   KL_TEST_ENTRY(test_io_stream_write_timeout_gives_up_when_funnel_is_locked),
   KL_TEST_ENTRY(test_io_stream_write_timeout_drops_only_the_locked_sink),
+  KL_TEST_ENTRY(test_io_stream_sink_ids_unique_across_funnels),
 };
 
 static const size_t TEST_ENTRIES_LEN = KL_ARRAY_LEN(TEST_ENTRIES);

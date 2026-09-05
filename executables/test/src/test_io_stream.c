@@ -125,9 +125,9 @@ void test_io_stream_create_sink_without_funnel_fails() {
     .type = KL_TEST_IOS_TYPE_UNKNOWN, .max_queue_length = 4,
   });
   KL_TEST_EXPECT_EQ_INT(id, -1);
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_UNKNOWN, 0) == 0);
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, -1) == 0);
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, 12345) == 0);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, 0) == 0);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, -1) == 0);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, 12345) == 0);
 
   kl_io_stream_destroy(&s);
 }
@@ -153,15 +153,15 @@ void test_io_stream_write_read_round_trip() {
     .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8,
   });
   KL_TEST_EXPECT_EXPR(sink >= 0);
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, sink) != 0);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, sink) != 0);
 
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_ASSERT(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk), "empty sink reads nothing");
+  KL_TEST_ASSERT(!kl_io_stream_read_chunk(&s, sink, 0, &chunk), "empty sink reads nothing");
 
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 42, 7), 1);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 1);
 
-  KL_TEST_ASSERT(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk), "chunk available");
+  KL_TEST_ASSERT(kl_io_stream_read_chunk(&s, sink, 0, &chunk), "chunk available");
   KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
   KL_TEST_EXPECT_EQ_INT(chunk.blob.size, (int64_t)sizeof(KL_TestIOSMsgA));
   KL_TEST_EXPECT_EXPR(chunk.blob.value != 0);
@@ -176,8 +176,8 @@ void test_io_stream_write_read_round_trip() {
   // freeing an already-freed / zero chunk is harmless
   kl_io_stream_chunk_free(&s, &chunk);
 
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
-  KL_TEST_ASSERT(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk), "sink empty again");
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 0);
+  KL_TEST_ASSERT(!kl_io_stream_read_chunk(&s, sink, 0, &chunk), "sink empty again");
 
   kl_io_stream_destroy(&s);
 }
@@ -194,7 +194,7 @@ void test_io_stream_chunk_copy_is_independent_of_source() {
   msg.seq = 999; // mutate the source after writing
 
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink, 0, &chunk));
   KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, 1);
   kl_io_stream_chunk_free(&s, &chunk);
 
@@ -209,11 +209,11 @@ void test_io_stream_read_preserves_fifo_order() {
   });
 
   for (int64_t i = 0; i < 50; i++) KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, i, 0), 1);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 50);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 50);
 
   for (int64_t i = 0; i < 50; i++) {
     KL_IOStreamChunk chunk = {0};
-    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk));
+    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink, 0, &chunk));
     KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, i);
     kl_io_stream_chunk_free(&s, &chunk);
   }
@@ -239,10 +239,10 @@ void test_io_stream_write_broadcasts_to_all_sinks() {
 
   for (int i = 0; i < N; i++) {
     KL_IOStreamChunk chunk = {0};
-    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sinks[i], 0, &chunk));
+    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sinks[i], 0, &chunk));
     KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, 11);
     kl_io_stream_chunk_free(&s, &chunk);
-    KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sinks[i], 0, &chunk));
+    KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, sinks[i], 0, &chunk));
   }
 
   kl_io_stream_destroy(&s);
@@ -263,23 +263,23 @@ void test_io_stream_sinks_only_receive_their_type() {
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_write(&s, KL_TEST_IOS_TYPE_B, KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgB, b)), 1);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 5, 0), 1);
 
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink_a), 1);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_B, sink_b), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink_a), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink_b), 1);
 
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_B, sink_b, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink_b, 0, &chunk));
   KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_B);
   KL_TEST_EXPECT_EQ_INT(chunk.blob.size, (int64_t)sizeof(KL_TestIOSMsgB));
   KL_TEST_EXPECT_EQ_INT(((uintptr_t)chunk.blob.value) % 32, 0);
   KL_TEST_EXPECT_EQ_FLOAT(((KL_TestIOSMsgB*)chunk.blob.value)->v[3], 4.0, 0.0);
   kl_io_stream_chunk_free(&s, &chunk);
 
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink_a, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink_a, 0, &chunk));
   KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
   kl_io_stream_chunk_free(&s, &chunk);
 
   // A sink id is only meaningful within its own funnel.
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_B, sink_b, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, sink_b, 0, &chunk));
 
   kl_io_stream_destroy(&s);
 }
@@ -299,11 +299,11 @@ void test_io_stream_full_sink_drops_newest() {
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 4, 0), 0); // dropped
   // the dropped copies were returned to the allocator, not leaked
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 3);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 3);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 3);
 
   for (int64_t i = 0; i < 3; i++) {
     KL_IOStreamChunk chunk = {0};
-    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk));
+    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink, 0, &chunk));
     KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, i);
     kl_io_stream_chunk_free(&s, &chunk);
   }
@@ -324,22 +324,21 @@ void test_io_stream_drain_sink() {
   for (int64_t i = 0; i < 5; i++) kl_test_ios_write_a(&s, i, 0);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 5);
 
-  kl_io_stream_drain_sink(&s, KL_TEST_IOS_TYPE_A, sink);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
+  kl_io_stream_drain_sink(&s, sink);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 0);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
 
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, sink, 0, &chunk));
 
   // still usable afterwards
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 9, 0), 1);
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sink, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink, 0, &chunk));
   KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, 9);
   kl_io_stream_chunk_free(&s, &chunk);
 
   // draining unknown sinks is a no-op
-  kl_io_stream_drain_sink(&s, KL_TEST_IOS_TYPE_A, 777);
-  kl_io_stream_drain_sink(&s, KL_TEST_IOS_TYPE_UNKNOWN, sink);
+  kl_io_stream_drain_sink(&s, 777);
 
   kl_io_stream_destroy(&s);
 }
@@ -359,23 +358,23 @@ void test_io_stream_close_sink() {
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 2, 0), 2);
 
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 4);
-  kl_io_stream_close_sink(&s, KL_TEST_IOS_TYPE_A, a);
+  int64_t a_pool_handle = kl_io_stream_get_sink(&s, a)->pool_handle;
+  kl_io_stream_close_sink(&s, a);
   // queued chunks of the closed sink were released
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 2);
 
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, a) == 0);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, a), -1);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, a) == 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a), -1);
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, a, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, a, 0, &chunk));
 
   // closing again / closing unknown ids is a no-op
-  kl_io_stream_close_sink(&s, KL_TEST_IOS_TYPE_A, a);
-  kl_io_stream_close_sink(&s, KL_TEST_IOS_TYPE_A, 4242);
-  kl_io_stream_close_sink(&s, KL_TEST_IOS_TYPE_UNKNOWN, b);
+  kl_io_stream_close_sink(&s, a);
+  kl_io_stream_close_sink(&s, 4242);
 
   // writes now only reach b
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 3, 0), 1);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, b), 3);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, b), 3);
 
   // a new sink reuses the freed slot but gets a fresh id; the stale id stays dead
   int64_t c = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){
@@ -383,9 +382,10 @@ void test_io_stream_close_sink() {
   });
   KL_TEST_EXPECT_EXPR(c >= 0);
   KL_TEST_EXPECT_EXPR(c != a);
-  KL_TEST_EXPECT_EQ_INT(kl_binary_pool_handle_index(c), kl_binary_pool_handle_index(a));
-  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, a) == 0);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, c), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_binary_pool_handle_index(kl_io_stream_get_sink(&s, c)->pool_handle),
+                        kl_binary_pool_handle_index(a_pool_handle));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, a) == 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, c), 0);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 4, 0), 2);
 
   kl_io_stream_destroy(&s);
@@ -406,7 +406,7 @@ void test_io_stream_sink_pool_grows_when_full() {
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 1, 0), N);
   for (int i = 0; i < N; i++) {
     KL_IOStreamChunk chunk = {0};
-    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sinks[i], 0, &chunk));
+    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sinks[i], 0, &chunk));
     kl_io_stream_chunk_free(&s, &chunk);
   }
 
@@ -432,7 +432,7 @@ void test_io_stream_blob_arena_grows_beyond_approx_size() {
   }
   for (int i = 0; i < 500; i++) {
     KL_IOStreamChunk chunk = {0};
-    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_B, sink, 0, &chunk));
+    KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, sink, 0, &chunk));
     KL_TEST_EXPECT_EQ_INT(((uintptr_t)chunk.blob.value) % 32, 0);
     KL_TEST_EXPECT_EQ_FLOAT(((KL_TestIOSMsgB*)chunk.blob.value)->v[0], (double)i, 0.0);
     kl_io_stream_chunk_free(&s, &chunk);
@@ -460,7 +460,7 @@ static void* kl_test_ios_reader_main(void* arg) {
   int64_t expected_seq = 0;
   while (r->received < r->expect_count) {
     KL_IOStreamChunk chunk = {0};
-    if (!kl_io_stream_read_chunk(r->stream, r->type, r->sink, 1.0, &chunk)) {
+    if (!kl_io_stream_read_chunk(r->stream, r->sink, 1.0, &chunk)) {
       sched_yield();
       continue;
     }
@@ -542,7 +542,7 @@ void test_io_stream_threads_single_writer_many_readers() {
     KL_TEST_EXPECT_EQ_INT(readers[i].out_of_order, 0);
     KL_TEST_EXPECT_EQ_INT(readers[i].wrong_type, 0);
     KL_TEST_EXPECT_EQ_INT(readers[i].misaligned, 0);
-    KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sinks[i]), 0);
+    KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sinks[i]), 0);
   }
   // every chunk that was handed out was freed again
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
@@ -573,7 +573,7 @@ void test_io_stream_threads_bounded_sink_backpressure() {
   KL_TEST_EXPECT_EQ_INT(reader.received, COUNT);
   KL_TEST_EXPECT_EQ_INT(reader.out_of_order, 0);
   KL_TEST_EXPECT_EQ_INT(reader.wrong_type, 0);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 0);
 
   kl_io_stream_destroy(&s);
 }
@@ -661,7 +661,7 @@ void test_io_stream_threads_create_close_sinks_while_writing() {
     for (int i = 0; i < PER_ROUND; i++) {
       int64_t last_seq = -1;
       KL_IOStreamChunk chunk = {0};
-      while (kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, sinks[i], 0, &chunk)) {
+      while (kl_io_stream_read_chunk(&s, sinks[i], 0, &chunk)) {
         KL_TestIOSMsgA* msg = (KL_TestIOSMsgA*)chunk.blob.value;
         KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
         KL_TEST_EXPECT_EXPR(msg->seq > last_seq); // gaps allowed (drops), reordering not
@@ -670,8 +670,8 @@ void test_io_stream_threads_create_close_sinks_while_writing() {
         kl_io_stream_chunk_free(&s, &chunk);
       }
       // close with whatever is still queued (exercises free-on-close under a live writer)
-      kl_io_stream_close_sink(&s, KL_TEST_IOS_TYPE_A, sinks[i]);
-      KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, sinks[i]) == 0);
+      kl_io_stream_close_sink(&s, sinks[i]);
+      KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, sinks[i]) == 0);
     }
   }
 
@@ -699,15 +699,15 @@ void test_io_stream_read_chunks() {
   kl_io_stream_chunk_list_init(&out, (KL_ListConfig){ .capacity = 4 });
 
   // empty sink: nothing read, list untouched
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 0, 8, &out));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, sink, 0, 8, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 0);
 
   for (int64_t i = 0; i < 10; i++) KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, i, 0), 1);
 
   // limit smaller than what's queued: takes exactly `limit`, oldest first
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 0, 4, &out));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, sink, 0, 4, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 4);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 6);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 6);
   for (int64_t i = 0; i < 4; i++) {
     KL_TEST_EXPECT_EQ_INT(out.items[i].type, KL_TEST_IOS_TYPE_A);
     KL_TEST_EXPECT_EQ_INT(out.items[i].blob.size, (int64_t)sizeof(KL_TestIOSMsgA));
@@ -716,9 +716,9 @@ void test_io_stream_read_chunks() {
 
   // appends to whatever is already in the list; limit larger than remaining
   // returns only what's there and leaves the sink empty
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 0, 100, &out));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, sink, 0, 100, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 10);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 0);
   for (int64_t i = 0; i < 10; i++) {
     KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)out.items[i].blob.value)->seq, i);
   }
@@ -731,18 +731,17 @@ void test_io_stream_read_chunks() {
 
   // limit <= 0 reads nothing even when data is queued
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 42, 0), 1);
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 0, 0, &out));
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 0, -1, &out));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, sink, 0, 0, &out));
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, sink, 0, -1, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 0);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 1);
 
-  // unknown sink / unknown type: false, list untouched
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, 4242, 0, 8, &out));
-  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_UNKNOWN, sink, 0, 8, &out));
+  // unknown sink: false, list untouched
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunks(&s, 4242, 0, 8, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 0);
 
   // with a lock timeout it behaves the same as a plain poll
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, KL_TEST_IOS_TYPE_A, sink, 1.0, 8, &out));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunks(&s, sink, 1.0, 8, &out));
   KL_TEST_EXPECT_EQ_INT(out.length, 1);
   KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)out.items[0].blob.value)->seq, 42);
   kl_io_stream_chunk_free(&s, &out.items[0]);
@@ -793,12 +792,12 @@ void test_io_stream_write_timeout_uncontended_behaves_like_write() {
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, 1.0), 2);
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, 0.0), 2);  // 0 → trylock
   KL_TEST_EXPECT_EQ_INT(kl_io_stream_write_timeout(&s, KL_TEST_IOS_TYPE_A, data, -1.0), 1); // a is full now
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, a), 2);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, b), 3);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a), 2);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, b), 3);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 5);
 
   KL_IOStreamChunk chunk = {0};
-  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, KL_TEST_IOS_TYPE_A, b, 0, &chunk));
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, b, 0, &chunk));
   KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
   KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->seq, 5);
   KL_TEST_EXPECT_EQ_INT(((KL_TestIOSMsgA*)chunk.blob.value)->tag, 1);
@@ -826,14 +825,14 @@ void test_io_stream_write_timeout_gives_up_when_funnel_is_locked() {
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 0.0), -2);
 
   // nothing was written, nothing leaked
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 0);
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 0);
 
   kl_mutex_unlock(&funnel->lock);
 
   // once released, the same write goes through
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_timeout_from_thread(&s, 5.0), 1);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, sink), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, sink), 1);
 
   kl_io_stream_destroy(&s);
 }
@@ -843,7 +842,7 @@ void test_io_stream_write_timeout_drops_only_the_locked_sink() {
   kl_test_ios_setup(&s, 4);
   int64_t busy = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
   int64_t free_ = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 8 });
-  KL_IOStreamSink* busy_sink = kl_io_stream_get_sink(&s, KL_TEST_IOS_TYPE_A, busy);
+  KL_IOStreamSink* busy_sink = kl_io_stream_get_sink(&s, busy);
 
   // Simulate a reader that is stuck inside a pop on one sink.
   kl_mutex_lock(&busy_sink->queue.lock);
@@ -853,14 +852,64 @@ void test_io_stream_write_timeout_drops_only_the_locked_sink() {
 
   kl_mutex_unlock(&busy_sink->queue.lock);
 
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, busy), 0);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, free_), 2);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, busy), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, free_), 2);
   // the two copies dropped for the busy sink were freed
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_live_blobs(&s), 2);
 
   // the funnel lock was released again: a plain blocking write works
   KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 1, 0), 2);
-  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, KL_TEST_IOS_TYPE_A, busy), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, busy), 1);
+
+  kl_io_stream_destroy(&s);
+}
+
+void test_io_stream_sink_ids_unique_across_funnels() {
+  KL_IOStream s;
+  kl_test_ios_setup(&s, 4);
+
+  // Both are slot 0 of their own funnel's pool; the public ids must still differ
+  // and each id must route to its own funnel without the caller naming the type.
+  int64_t a = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 4 });
+  int64_t b = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_B, .max_queue_length = 4 });
+  KL_TEST_EXPECT_EXPR(a >= 0);
+  KL_TEST_EXPECT_EXPR(b >= 0);
+  KL_TEST_EXPECT_EXPR(a != b);
+
+  KL_IOStreamSink* sa = kl_io_stream_get_sink(&s, a);
+  KL_IOStreamSink* sb = kl_io_stream_get_sink(&s, b);
+  KL_TEST_EXPECT_EXPR(sa != 0 && sb != 0 && sa != sb);
+  KL_TEST_EXPECT_EQ_INT(sa->config.type, KL_TEST_IOS_TYPE_A);
+  KL_TEST_EXPECT_EQ_INT(sb->config.type, KL_TEST_IOS_TYPE_B);
+  KL_TEST_EXPECT_EQ_INT(sa->id, a);
+  KL_TEST_EXPECT_EQ_INT(sb->id, b);
+  KL_TEST_EXPECT_EQ_INT(sa->pool_handle, sb->pool_handle);
+
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 1, 0), 1);
+  KL_TestIOSMsgB mb = { .v = { 1, 2, 3, 4 } };
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_write(&s, KL_TEST_IOS_TYPE_B, KL_BLOB_ALIGNED_RAW_T(KL_TestIOSMsgB, mb)), 1);
+
+  KL_IOStreamChunk chunk = {0};
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, b, 0, &chunk));
+  KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_B);
+  KL_TEST_EXPECT_EQ_INT(chunk.blob.size, (int64_t)sizeof(KL_TestIOSMsgB));
+  kl_io_stream_chunk_free(&s, &chunk);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_read_chunk(&s, a, 0, &chunk));
+  KL_TEST_EXPECT_EQ_INT(chunk.type, KL_TEST_IOS_TYPE_A);
+  kl_io_stream_chunk_free(&s, &chunk);
+
+  // Closing a and re-creating in the same funnel recycles the pool slot but
+  // never the public id: the old id stays dead.
+  kl_io_stream_close_sink(&s, a);
+  int64_t a2 = kl_io_stream_create_sink(&s, (KL_IOStreamSinkConfig){ .type = KL_TEST_IOS_TYPE_A, .max_queue_length = 4 });
+  KL_TEST_EXPECT_EXPR(a2 >= 0 && a2 != a && a2 != b);
+  KL_TEST_EXPECT_EXPR(kl_io_stream_get_sink(&s, a) == 0);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a), -1);
+  KL_TEST_EXPECT_EXPR(!kl_io_stream_read_chunk(&s, a, 0, &chunk));
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a2), 0);
+  KL_TEST_EXPECT_EQ_INT(kl_test_ios_write_a(&s, 2, 0), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, a2), 1);
+  KL_TEST_EXPECT_EQ_INT(kl_io_stream_sink_length(&s, b), 0);
 
   kl_io_stream_destroy(&s);
 }

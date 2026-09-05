@@ -23,10 +23,13 @@
  *
  * Locking: each write takes the funnel's sink-set lock (so the sink set can't
  * change mid-broadcast) and, per sink, the blob allocator lock + that sink's
- * queue lock. A read takes the pool lock (handle validation) + the queue lock,
- * and freeing a chunk takes the allocator lock. Nothing is held across a
- * user-visible call boundary, and readers never touch the funnel lock, so a
- * reader can't stall the writer beyond one queue push.
+ * queue lock. A read resolves the sink id under the stream's sink-ref lock
+ * (id -> funnel + pool handle), then takes the pool lock (handle validation)
+ * + the queue lock; freeing a chunk takes the allocator lock. Nothing is held
+ * across a user-visible call boundary, and readers never touch the funnel
+ * lock, so a reader can't stall the writer beyond one queue push. Writers
+ * never touch the sink-ref lock; it is only contended by create/close_sink.
+ * Lock order where nested: funnel lock -> sink-ref lock.
  **/
 #ifndef KL_IO_STREAM_H
 #define KL_IO_STREAM_H
@@ -60,10 +63,21 @@ typedef struct {
 
 typedef struct {
   bool initialized;
-  int64_t id;
+  int64_t id;          // stream-wide unique sink id (what the public API takes)
+  int64_t pool_handle; // slot handle inside the owning funnel's `sinks` pool
   KL_IOStreamSinkConfig config;
   KL_io_stream_chunk_Queue queue;
 } KL_IOStreamSink;
+
+// Where a sink id lives: its funnel (by type) and its slot handle in that
+// funnel's pool. Sink ids are minted from a monotonic counter and never
+// reused, so a closed sink's id simply stops resolving.
+typedef struct {
+  int32_t type;
+  int64_t pool_handle;
+} KL_IOStreamSinkRef;
+
+KL_DEFINE_HASHMAP(io_stream_sink_ref, KL_IOStreamSinkRef);
 
 typedef struct {
   int32_t type;
@@ -100,6 +114,9 @@ typedef struct {
   KL_IOStreamConfig config;
   KL_io_stream_sink_funnel_Hashmap funnels; // keyed by int32_t type
   KL_Mutex funnels_lock;                    // serialises create_funnel
+  KL_io_stream_sink_ref_Hashmap sink_refs;  // keyed by int64_t sink id
+  KL_Mutex sink_refs_lock;                  // guards sink_refs (see locking notes)
+  int64_t next_sink_id;                     // monotonic; guarded by sink_refs_lock
   KL_Allocator blob_allocator;
 } KL_IOStream;
 
@@ -115,14 +132,16 @@ KL_IOStreamSinkFunnel* kl_io_stream_get_funnel(KL_IOStream* stream, int32_t type
 // threading model above).
 KL_IOStreamSinkFunnel* kl_io_stream_create_funnel(KL_IOStream* stream, KL_IOStreamSinkFunnelConfig cfg);
 
-// Returns the sink id (>= 0), or -1 if no funnel exists for `cfg.type`.
+// Returns the sink id (>= 0), or -1 if no funnel exists for `cfg.type`. The
+// sink is bound to `cfg.type` for its lifetime; every other sink-addressed
+// call below takes only the id.
 int64_t kl_io_stream_create_sink(KL_IOStream* stream, KL_IOStreamSinkConfig cfg);
 
 // Returns 0 if the id is stale/unknown.
-KL_IOStreamSink* kl_io_stream_get_sink(KL_IOStream* stream, int32_t type, int64_t id);
+KL_IOStreamSink* kl_io_stream_get_sink(KL_IOStream* stream, int64_t id);
 
 // Frees any queued chunks and releases the sink. No-op for a stale id.
-void kl_io_stream_close_sink(KL_IOStream* stream, int32_t type, int64_t id);
+void kl_io_stream_close_sink(KL_IOStream* stream, int64_t id);
 
 // Copies `data` into every sink of the funnel for `type`. `data` must match
 // the funnel's chunk size + alignment exactly. A sink whose queue is at
@@ -144,15 +163,15 @@ int64_t kl_io_stream_write_timeout(KL_IOStream* stream, int32_t type, KL_BlobAli
 // (<= 0 → a single trylock). NOTE: the timeout bounds the wait for the *lock*,
 // not for data — this is a poll, it never waits for a chunk to arrive.
 // Caller must call `kl_io_stream_chunk_free` on `out` after use.
-bool kl_io_stream_read_chunk(KL_IOStream* stream, int32_t type, int64_t sink_id, double timeout_ms, KL_IOStreamChunk* out);
+bool kl_io_stream_read_chunk(KL_IOStream* stream, int64_t sink_id, double timeout_ms, KL_IOStreamChunk* out);
 
-bool kl_io_stream_read_chunks(KL_IOStream* stream, int32_t type, int64_t sink_id, double timeout_ms, int64_t limit, KL_io_stream_chunk_List* out);
+bool kl_io_stream_read_chunks(KL_IOStream* stream, int64_t sink_id, double timeout_ms, int64_t limit, KL_io_stream_chunk_List* out);
 
 void kl_io_stream_chunk_free(KL_IOStream* stream, KL_IOStreamChunk* chunk);
 
 // Discards (and frees) every queued chunk in a sink.
-void kl_io_stream_drain_sink(KL_IOStream* stream, int32_t type, int64_t sink_id);
+void kl_io_stream_drain_sink(KL_IOStream* stream, int64_t sink_id);
 
 // Number of chunks currently queued in a sink; -1 if the sink is unknown.
-int64_t kl_io_stream_sink_length(KL_IOStream* stream, int32_t type, int64_t sink_id);
+int64_t kl_io_stream_sink_length(KL_IOStream* stream, int64_t sink_id);
 #endif
