@@ -124,7 +124,7 @@ static inline KL_Vec3 rm_sky(KL_Vec3 rd) {
 }
 
 static void my_shader(KL_BitmapProcessContext* ctx) {
-  KL_Bitmap* bm = ctx->self;
+  KL_Bitmap* bm = ctx->output;
   float aspect = (float)bm->width / (float)bm->height;
 
   // uv has y pointing down (row 0 is the top). Flip to a y-up screen space in [-1, 1].
@@ -205,7 +205,7 @@ static int cmd_bitmap_fn(KL_CLICommand *cmd) {
   kl_bitmap_processor_init(&proc);
 
   kl_bitmap_processor_run(&proc, (KL_BitmapProcessConfig){
-    .bitmap = &bm,
+    .output = &bm,
     .fn = my_shader,
     .num_workers = 16
   });
@@ -239,12 +239,12 @@ static inline float luma4(KL_Vec4 c) {
 }
 
 static void shade__lowpass(KL_BitmapProcessContext* ctx) {
-  KL_Bitmap* input = &ctx->config.textures.inputs.items[0];
+  KL_Bitmap* input = &ctx->config.input.bitmaps.items[0];
   KL_Vec4 color = kl_bitmap_get(input, ctx->uv);
 
   float w = fminf(color.w, kl_smoothstep_f32(0.5f, 0.0f, luma4(color)));
 
-  kl_bitmap_set(ctx->self, ctx->uv, kl_vec4(color.x, color.y, color.z, w));
+  kl_bitmap_set(ctx->output, ctx->uv, kl_vec4(color.x, color.y, color.z, w));
 }
 
 // ---------------------------------------------------------------------------
@@ -368,12 +368,12 @@ static inline float pbr_mask(KL_Bitmap* lowpass, KL_Vec2 uv, KL_Vec3 n) {
 }
 
 static void shade__normal(KL_BitmapProcessContext* ctx) {
-  KL_Bitmap* lowpass = &ctx->config.textures.inputs.items[1];
+  KL_Bitmap* lowpass = &ctx->config.input.bitmaps.items[1];
 
   KL_Vec3 n = approx_normal(lowpass, ctx->uv);
   float mask = pbr_mask(lowpass, ctx->uv, n);
 
-  kl_bitmap_set(ctx->self, ctx->uv, kl_vec4(n.x * 0.5f + 0.5f, n.y * 0.5f + 0.5f, n.z * 0.5f + 0.5f, mask));
+  kl_bitmap_set(ctx->output, ctx->uv, kl_vec4(n.x * 0.5f + 0.5f, n.y * 0.5f + 0.5f, n.z * 0.5f + 0.5f, mask));
 }
 
 /**
@@ -436,15 +436,15 @@ static inline float approx_metallic(KL_Bitmap* source, KL_Bitmap* lowpass, KL_Ve
 
 // arm = (ambient occlusion, roughness, metallic)
 static void shade__arm(KL_BitmapProcessContext* ctx) {
-  KL_Bitmap* source = &ctx->config.textures.inputs.items[0];
-  KL_Bitmap* lowpass = &ctx->config.textures.inputs.items[1];
+  KL_Bitmap* source = &ctx->config.input.bitmaps.items[0];
+  KL_Bitmap* lowpass = &ctx->config.input.bitmaps.items[1];
 
   float a = approx_ao(lowpass, ctx->uv);
   float r = approx_roughness(source, lowpass, ctx->uv);
   float m = approx_metallic(source, lowpass, ctx->uv);
   float mask = pbr_mask(lowpass, ctx->uv, approx_normal(lowpass, ctx->uv));
 
-  kl_bitmap_set(ctx->self, ctx->uv, kl_vec4(a, r, m, mask));
+  kl_bitmap_set(ctx->output, ctx->uv, kl_vec4(a, r, m, mask));
 }
 
 // ---------------------------------------------------------------------------
@@ -467,9 +467,9 @@ static inline float pbr_srgb_encode(float v) {
 static void shade__preview(KL_BitmapProcessContext* ctx) {
   const KL_PBRPreviewParams* prm = (const KL_PBRPreviewParams*)ctx->config.user_ptr;
   assert(prm != 0);
-  KL_Bitmap* albedo_map = &ctx->config.textures.inputs.items[0];
-  KL_Bitmap* normal_map = &ctx->config.textures.inputs.items[1];
-  KL_Bitmap* arm_map = &ctx->config.textures.inputs.items[2];
+  KL_Bitmap* albedo_map = &ctx->config.input.bitmaps.items[0];
+  KL_Bitmap* normal_map = &ctx->config.input.bitmaps.items[1];
+  KL_Bitmap* arm_map = &ctx->config.input.bitmaps.items[2];
 
   KL_Vec4 alb = kl_bitmap_get(albedo_map, ctx->uv);
   KL_Vec4 nrm = kl_bitmap_get(normal_map, ctx->uv);
@@ -504,7 +504,7 @@ static void shade__preview(KL_BitmapProcessContext* ctx) {
   lit = kl_vec3_add(lit, kl_vec3_scale(diffuse_color, prm->ambient));
   lit = kl_vec3_scale(lit, ao);
 
-  kl_bitmap_set(ctx->self, ctx->uv, kl_vec4(pbr_srgb_encode(lit.x), pbr_srgb_encode(lit.y), pbr_srgb_encode(lit.z), 1.0f));
+  kl_bitmap_set(ctx->output, ctx->uv, kl_vec4(pbr_srgb_encode(lit.x), pbr_srgb_encode(lit.y), pbr_srgb_encode(lit.z), 1.0f));
 }
 
 static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
@@ -544,13 +544,13 @@ static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
   kl_bitmap_processor_init(&proc);
 
   KL_BitmapProcessConfig cfg = {0};
-  kl_bitmap_list_init(&cfg.textures.inputs, (KL_ListConfig){ .capacity = 4 });
+  kl_bitmap_list_init(&cfg.input.bitmaps, (KL_ListConfig){ .capacity = 4 });
 
   {
-    kl_bitmap_list_reset_fast(&cfg.textures.inputs);
-    kl_bitmap_list_push(&cfg.textures.inputs, input_img);
+    kl_bitmap_list_reset_fast(&cfg.input.bitmaps);
+    kl_bitmap_list_push(&cfg.input.bitmaps, input_img);
     
-    cfg.bitmap = &out_lowpass;
+    cfg.output = &out_lowpass;
     cfg.fn = shade__lowpass;
     kl_bitmap_processor_run(&proc, cfg);
     
@@ -561,11 +561,11 @@ static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
   }
 
   {
-    kl_bitmap_list_reset_fast(&cfg.textures.inputs);
-    kl_bitmap_list_push(&cfg.textures.inputs, input_img);
-    kl_bitmap_list_push(&cfg.textures.inputs, out_lowpass);
+    kl_bitmap_list_reset_fast(&cfg.input.bitmaps);
+    kl_bitmap_list_push(&cfg.input.bitmaps, input_img);
+    kl_bitmap_list_push(&cfg.input.bitmaps, out_lowpass);
     
-    cfg.bitmap = &out_normal;
+    cfg.output = &out_normal;
     cfg.fn = shade__normal;
     kl_bitmap_processor_run(&proc, cfg);
     
@@ -576,11 +576,11 @@ static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
   }
 
   {
-    kl_bitmap_list_reset_fast(&cfg.textures.inputs);
-    kl_bitmap_list_push(&cfg.textures.inputs, input_img);
-    kl_bitmap_list_push(&cfg.textures.inputs, out_lowpass);
+    kl_bitmap_list_reset_fast(&cfg.input.bitmaps);
+    kl_bitmap_list_push(&cfg.input.bitmaps, input_img);
+    kl_bitmap_list_push(&cfg.input.bitmaps, out_lowpass);
     
-    cfg.bitmap = &out_arm;
+    cfg.output = &out_arm;
     cfg.fn = shade__arm;
     kl_bitmap_processor_run(&proc, cfg);
     
@@ -591,12 +591,12 @@ static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
   }
 
   {
-    kl_bitmap_list_reset_fast(&cfg.textures.inputs);
-    kl_bitmap_list_push(&cfg.textures.inputs, out_lowpass);
-    kl_bitmap_list_push(&cfg.textures.inputs, out_normal);
-    kl_bitmap_list_push(&cfg.textures.inputs, out_arm);
+    kl_bitmap_list_reset_fast(&cfg.input.bitmaps);
+    kl_bitmap_list_push(&cfg.input.bitmaps, out_lowpass);
+    kl_bitmap_list_push(&cfg.input.bitmaps, out_normal);
+    kl_bitmap_list_push(&cfg.input.bitmaps, out_arm);
 
-    cfg.bitmap = &out_preview;
+    cfg.output = &out_preview;
     cfg.fn = shade__preview;
     cfg.user_ptr = &preview_params;
     kl_bitmap_processor_run(&proc, cfg);
@@ -608,7 +608,7 @@ static int cmd_bitmap_pipeline_fn(KL_CLICommand *cmd) {
     printf("wrote to: %s\n", buff.data);
   }
 
-  kl_bitmap_list_destroy(&cfg.textures.inputs);
+  kl_bitmap_list_destroy(&cfg.input.bitmaps);
   kl_bitmap_destroy(&input_img);
   kl_bitmap_destroy(&out_lowpass);
   kl_bitmap_destroy(&out_normal);

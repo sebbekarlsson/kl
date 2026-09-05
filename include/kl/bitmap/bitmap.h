@@ -77,18 +77,17 @@ struct KL_BitmapProcessContext;
 typedef void (*KL_BitmapProcessFunction)(struct KL_BitmapProcessContext* ctx);
 
 typedef struct KL_BitmapProcessConfig {
-  KL_Bitmap* bitmap;
+  KL_Bitmap* output;
   int32_t num_workers;
   KL_BitmapProcessFunction fn;
   void* user_ptr; // passed through untouched to fn (per-run parameters)
   struct {
-    KL_bitmap_List inputs; // read-only inputs
-    KL_bitmap_List outputs; // write-only outputs
-  } textures;
+    KL_bitmap_List bitmaps; // read-only inputs
+  } input;
 } KL_BitmapProcessConfig;
 
 typedef struct KL_BitmapProcessContext {
-  KL_Bitmap* self; // the bitmap we're curently processing (not cropped)
+  KL_Bitmap* output; // the bitmap we're curently processing (not cropped)
   KL_BitmapProcessConfig config;
   KL_Vec2 uv;
   KL_IVec2 fragcoord;  // pixel coordinate in the full bitmap (config.bitmap)
@@ -98,9 +97,6 @@ typedef struct KL_BitmapProcessContext {
   int32_t tile_w;
   int32_t tile_h;
 } KL_BitmapProcessContext;
-
-
-
 
 typedef struct {
   bool initialized;

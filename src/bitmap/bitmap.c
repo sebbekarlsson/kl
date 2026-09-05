@@ -250,7 +250,7 @@ static void* bitmap_process_fn(KL_Worker* worker) {
   assert(worker->payload.value != 0);
   assert(worker->payload.size == sizeof(KL_BitmapProcessContext));
   KL_BitmapProcessContext ctx = *(KL_BitmapProcessContext*)worker->payload.value;
-  KL_Bitmap* bm = ctx.config.bitmap;
+  KL_Bitmap* bm = ctx.config.output;
   assert(bm != 0);
   assert(bm->width > 0);
   assert(bm->height > 0);
@@ -281,10 +281,10 @@ static void* bitmap_process_fn(KL_Worker* worker) {
 void kl_bitmap_processor_run(KL_BitmapProcessor* proc, KL_BitmapProcessConfig cfg) {
   assert(proc->initialized);
   assert(cfg.fn != 0);
-  assert(cfg.bitmap != 0);
-  assert(cfg.bitmap->width > 0);
-  assert(cfg.bitmap->height > 0);
-  assert(cfg.bitmap->data != 0);
+  assert(cfg.output != 0);
+  assert(cfg.output->width > 0);
+  assert(cfg.output->height > 0);
+  assert(cfg.output->data != 0);
 
   int64_t max_workers = proc->worker_pool.config.max_workers;
   if (cfg.num_workers <= 0 || cfg.num_workers > max_workers) {
@@ -298,22 +298,22 @@ void kl_bitmap_processor_run(KL_BitmapProcessor* proc, KL_BitmapProcessConfig cf
 
   // Split into an NxN grid of tiles; N*N must never exceed the pool size.
   int32_t tiles_per_axis = KL_MAX((int32_t)floorf(sqrtf((float)cfg.num_workers)), 1);
-  int32_t crop_size_x = (int32_t)ceilf((float)cfg.bitmap->width / (float)tiles_per_axis);
-  int32_t crop_size_y = (int32_t)ceilf((float)cfg.bitmap->height / (float)tiles_per_axis);
+  int32_t crop_size_x = (int32_t)ceilf((float)cfg.output->width / (float)tiles_per_axis);
+  int32_t crop_size_y = (int32_t)ceilf((float)cfg.output->height / (float)tiles_per_axis);
   assert(crop_size_x > 0);
   assert(crop_size_y > 0);
 
 
-  for (int32_t y = 0; y < cfg.bitmap->height; y += crop_size_y) {
-    for (int32_t x = 0; x < cfg.bitmap->width; x += crop_size_x) {
+  for (int32_t y = 0; y < cfg.output->height; y += crop_size_y) {
+    for (int32_t x = 0; x < cfg.output->width; x += crop_size_x) {
       KL_BitmapProcessContext ctx = {
-        .self = cfg.bitmap,
+        .output = cfg.output,
         .config = cfg,
         .tile_x = x,
         .tile_y = y,
         // clip edge tiles so no worker runs past the bitmap
-        .tile_w = KL_MIN(crop_size_x, cfg.bitmap->width - x),
-        .tile_h = KL_MIN(crop_size_y, cfg.bitmap->height - y),
+        .tile_w = KL_MIN(crop_size_x, cfg.output->width - x),
+        .tile_h = KL_MIN(crop_size_y, cfg.output->height - y),
       };
       kl_worker_pool__worker_register(&proc->worker_pool, (KL_WorkerConfig){
         .fn = bitmap_process_fn,
