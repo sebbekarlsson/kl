@@ -1,5 +1,6 @@
 #ifndef KL_VEC2_H
 #define KL_VEC2_H
+#include <stdint.h>
 
 typedef union {
   float items[2];
@@ -27,5 +28,14 @@ KL_Vec2 kl_vec2_mul(KL_Vec2 a, KL_Vec2 b);
 KL_Vec2 kl_vec2_div(KL_Vec2 a, KL_Vec2 b);
 
 KL_Vec2 kl_vec2_lerp(KL_Vec2 a, KL_Vec2 b, float t);
+
+typedef union {
+  int32_t items[2];
+  
+  struct {
+    int32_t x;
+    int32_t y;
+  };
+} KL_IVec2;
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef KL_TIME_H
 #define KL_TIME_H
 
+typedef double (*KL_GetTimeFunction)();
+
 /**
 * @brief the current monotonic time, in seconds
 **/
