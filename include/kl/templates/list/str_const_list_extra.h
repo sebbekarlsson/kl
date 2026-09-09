@@ -2,6 +2,7 @@
 #define KL_STR_CONST_LIST_EXTRA_H
 #include <kl/templates/list/list.h>
 #include <kl/templates/list/str_const_list.h>
+#include <kl/memory/allocator.h>
 #include <kl/string/string.h>
 #include <stdbool.h>
 
@@ -9,5 +10,7 @@
 bool kl_str_const_list_includes_str(const KL_str_const_List* list, KL_StrConst str);
 
 bool kl_str_const_list_push_unique(KL_str_const_List* list, KL_StrConst str);
+
+bool kl_str_const_list_push_unique_strdup(KL_str_const_List* list, KL_StrConst str, KL_Allocator* allocator);
 
 #endif

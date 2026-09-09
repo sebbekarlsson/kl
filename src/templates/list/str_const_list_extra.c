@@ -25,3 +25,15 @@ bool kl_str_const_list_push_unique(KL_str_const_List* list, KL_StrConst str) {
 
   return true;
 }
+
+
+bool kl_str_const_list_push_unique_strdup(KL_str_const_List* list, KL_StrConst str, KL_Allocator* allocator) {
+  assert(list != 0);
+  assert(list->initialized);
+
+  if (kl_str_const_list_includes_str(list, str)) return false;
+
+  kl_str_const_list_push(list, kl_str_const_strdup(str, allocator));
+
+  return true;
+}
