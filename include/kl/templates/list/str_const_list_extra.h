@@ -8,4 +8,6 @@
 
 bool kl_str_const_list_includes_str(const KL_str_const_List* list, KL_StrConst str);
 
+bool kl_str_const_list_push_unique(KL_str_const_List* list, KL_StrConst str);
+
 #endif

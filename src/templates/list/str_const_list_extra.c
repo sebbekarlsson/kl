@@ -13,3 +13,15 @@ bool kl_str_const_list_includes_str(const KL_str_const_List* list, KL_StrConst s
   
   return false;
 }
+
+
+bool kl_str_const_list_push_unique(KL_str_const_List* list, KL_StrConst str) {
+  assert(list != 0);
+  assert(list->initialized);
+
+  if (kl_str_const_list_includes_str(list, str)) return false;
+
+  kl_str_const_list_push(list, str);
+
+  return true;
+}
