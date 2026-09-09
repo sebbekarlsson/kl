@@ -190,6 +190,24 @@ KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator) {
   };
 }
 
+KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_Allocator* allocator) {
+  assert(allocator != 0);
+  if (a.length <= 0 && b.length <= 0) return KL_STR_CONST_NULL();
+  if (a.length <= 0 && b.length > 0) return b;
+  if (a.length > 0 && b.length <= 0) return a;
+
+  assert(a.value != 0);
+  assert(b.value != 0);
+
+  KL_StrBuffer buff = {0};
+  buff.allocator = allocator;
+  buff.bump_size = a.length + b.length + 1;
+  kl_str_buffer_append(&buff, a);
+  kl_str_buffer_append(&buff, b);
+
+  return KL_STR_BUFFER_TO_STR_CONST(buff);
+}
+
 KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrConst repl, bool all, KL_StrBuffer* buffer) {
   assert(buffer != 0);
 
