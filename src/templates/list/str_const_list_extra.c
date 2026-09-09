@@ -37,3 +37,18 @@ bool kl_str_const_list_push_unique_strdup(KL_str_const_List* list, KL_StrConst s
 
   return true;
 }
+
+
+bool kl_str_const_list_copy_deep(KL_str_const_List* dest, KL_str_const_List src, KL_Allocator* allocator) {
+  assert(src.initialized);
+  if (!dest->initialized) {
+    kl_str_const_list_init(dest, src.config);
+  }
+
+  for (int64_t i = 0; i < src.length; i++) {
+    KL_StrConst copy = kl_str_const_strdup(src.items[i], allocator);
+    kl_str_const_list_push(dest, copy);
+  }
+
+  return dest->length > 0 && dest->items != 0;
+}

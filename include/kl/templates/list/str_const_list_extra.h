@@ -13,4 +13,6 @@ bool kl_str_const_list_push_unique(KL_str_const_List* list, KL_StrConst str);
 
 bool kl_str_const_list_push_unique_strdup(KL_str_const_List* list, KL_StrConst str, KL_Allocator* allocator);
 
+bool kl_str_const_list_copy_deep(KL_str_const_List* dest, KL_str_const_List src, KL_Allocator* allocator);
+
 #endif
