@@ -51,7 +51,9 @@ KL_StrConst kl_str_const_remove_suffix(KL_StrConst str, KL_StrConst sub);
 
 KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator);
 
-KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_Allocator* allocator);
+KL_StrConst kl_str_const_concat(KL_StrConst a, KL_StrConst b, KL_Allocator* allocator);
+
+KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_StrConst between, KL_Allocator* allocator);
 
 typedef struct {
   char* data;

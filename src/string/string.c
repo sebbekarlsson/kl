@@ -190,7 +190,7 @@ KL_StrConst kl_str_const_strdup(KL_StrConst str, KL_Allocator* allocator) {
   };
 }
 
-KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_Allocator* allocator) {
+KL_StrConst kl_str_const_concat(KL_StrConst a, KL_StrConst b, KL_Allocator* allocator) {
   assert(allocator != 0);
   if (a.length <= 0 && b.length <= 0) return KL_STR_CONST_NULL();
   if (a.length <= 0 && b.length > 0) return b;
@@ -205,6 +205,27 @@ KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_Allocator* alloca
   kl_str_buffer_append(&buff, a);
   kl_str_buffer_append(&buff, b);
 
+  return KL_STR_BUFFER_TO_STR_CONST(buff);
+}
+
+
+KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_StrConst between, KL_Allocator* allocator) {
+  if (between.length <= 0 || between.value == 0) return kl_str_const_concat(a, b, allocator);
+
+  KL_StrBuffer buff = {0};
+  buff.allocator = allocator;
+  buff.bump_size = a.length + b.length + between.length + 1;
+  
+  if (a.length > 0 && a.value != 0) {
+    kl_str_buffer_append(&buff, a);
+  }
+
+  kl_str_buffer_append(&buff, between);
+
+  if (b.length > 0 && b.value != 0) {
+    kl_str_buffer_append(&buff, b);
+  }
+  
   return KL_STR_BUFFER_TO_STR_CONST(buff);
 }
 
