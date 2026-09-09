@@ -14,6 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `./build/test --report <file>` writes a per-test timing report instead of running normally; `--filter <substr>` narrows which tests it includes (substring match; only used in report mode).
 - Build type is `RelWithDebInfo` with `-DNDEBUG` stripped so `assert()` stays live. Compile flags include `-mavx2 -mfma`; the codebase assumes an AVX2-capable x86_64 host.
 - `compile_commands.json` is exported into `./build/` for clangd/LSPs.
+- The `executables/` programs (`test`, `kl_playground`, `kl_bench`) only build when kl is the top-level CMake project. Consumers that `add_subdirectory`/`FetchContent` kl get `libkl.a` alone; they can opt back in with `-DKL_BUILD_EXECUTABLES=ON`.
 
 ## Adding executables
 
