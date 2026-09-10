@@ -14,6 +14,7 @@
 #include <kl/math/vec2.h>
 #include <kl/math/vec3.h>
 #include <kl/math/vec4.h>
+#include <kl/string/string.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -63,6 +64,14 @@ KL_Vec4 kl_bitmap_get(KL_Bitmap* bm, KL_Vec2 uv);
 KL_Vec3 kl_bitmap_get_rgb(KL_Bitmap* bm, KL_Vec2 uv);
 
 KL_Vec4 kl_bitmap_set(KL_Bitmap* bm, KL_Vec2 uv, KL_Vec4 pixel);
+
+
+// ----------- drawing
+
+//void kl_bitmap_draw_char(KL_Bitmap* bm, KL_IVec2 coords, KL_IVec2 size, char c, KL_Vec4 color);
+//
+//void kl_bitmap_draw_text(KL_Bitmap* bm, KL_IVec2 coords, KL_IVec2 glyph_size, KL_StrConst text, KL_Vec4 color);
+
 
 
 /**

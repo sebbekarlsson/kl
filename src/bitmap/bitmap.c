@@ -3,6 +3,7 @@
 #include <kl/common/number.h>
 #include <kl/threads/util.h>
 #include <kl/math/macros.h>
+//#include <kl/bitmap/font.h>
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -199,6 +200,52 @@ KL_Vec4 kl_bitmap_set(KL_Bitmap* bm, KL_Vec2 uv, KL_Vec4 pixel) {
 
   return kl_bitmap_get(bm, uv);
 }
+
+// ----------- drawing
+
+//void kl_bitmap_draw_char(KL_Bitmap* bm, KL_IVec2 coords, KL_IVec2 size, char c, KL_Vec4 color) {
+//  assert(bm->initialized);
+//  assert(bm->data != 0);
+//
+//
+//  int32_t idx = (int32_t)c;
+//  assert(idx >= 0);
+//  assert(idx < 255);
+//
+//  const uint16_t* glyph = fr_font_glyphs[idx];
+//
+//
+//  for (int32_t sy = 0; sy < size.y; sy++) {
+//    for (int32_t sx = 0; sx < size.x; sx++) {
+//      float u = (float)sx / (float)size.x;
+//      float v = (float)sy / (float)size.y;
+//
+//      uint8_t alpha_u = fr_font_sample_uv(glyph, u, v);
+//      float alpha = (float)alpha_u / 255.0f;
+//
+//      float ku = ((float)coords.x + (float)sx) / (float)bm->width;
+//      float kv = ((float)coords.y + (float)sy) / (float)bm->height;
+//      kl_bitmap_set(bm, (KL_Vec2){ .x = ku, .y = kv }, (KL_Vec4){ .x = color.x * alpha, .y = color.y * alpha, .z = color.z * alpha, .w = color.w * alpha });
+//    }
+//  }
+//  
+//}
+//
+//
+//void kl_bitmap_draw_text(KL_Bitmap* bm, KL_IVec2 coords, KL_IVec2 glyph_size, KL_StrConst text, KL_Vec4 color) {
+//  assert(bm->initialized);
+//  assert(bm->data != 0);
+//
+//
+//  int32_t x = 0;
+//
+//  for (int64_t i = 0; i < text.length; i++) {
+//
+//    kl_bitmap_draw_char(bm, (KL_IVec2){ .x = coords.x + x, .y = coords.y }, glyph_size, text.value[i], color);
+//    
+//    x += glyph_size.x;
+//  }
+//}
 
 void kl_bitmap_save__ppm(KL_Bitmap* bm, FILE* fp) {
   assert(bm->initialized);

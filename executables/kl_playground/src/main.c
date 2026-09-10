@@ -226,6 +226,29 @@ static int cmd_bitmap_fn(KL_CLICommand *cmd) {
   return 0;
 }
 
+//static int cmd_bitmap_fn2(KL_CLICommand *cmd) {
+//  (void) cmd;
+//
+//  KL_Bitmap bm = {0};
+//  kl_bitmap_alloc(&bm, (KL_BitmapConfig){ .width = 1024, .height = 768 });
+//
+//
+//  kl_bitmap_draw_text(&bm, (KL_IVec2){ .x = bm.width / 2, .y = bm.height / 2 }, (KL_IVec2){ .x = 64, .y = 64 }, KL_STR_CONST_LIT("hello"), (KL_Vec4){ .x = 1.0f, .y = 1.0f, .z = 1.0f, .w = 1.0f });
+//
+//
+//  const char* outpath = "bitmap.ppm";
+//
+//  FILE* fp = fopen(outpath, "w+");
+//  kl_bitmap_save__ppm(&bm, fp);
+//  fclose(fp);
+//  fp = 0;
+//  printf("wrote to: %s\n", outpath);
+//  
+//  kl_bitmap_destroy(&bm);
+//
+//  return 0;
+//}
+
 
 // ------ PBR playground
 
@@ -643,6 +666,15 @@ int main(int argc, char *argv[]) {
     }
   );
   (void)cmd_bitmap;
+
+  //KL_CLICommand* cmd_bitmap2 = kl_cli_program_define_command(
+  //  &program,
+  //  (KL_CLICommandConfig){
+  //    .name = KL_STR_CONST_LIT("bitmap2"),
+  //    .fn = cmd_bitmap_fn2,
+  //  }
+  //);
+  //(void)cmd_bitmap2;
 
   KL_CLICommand* cmd_bitmap_pipeline = kl_cli_program_define_command(
     &program,
