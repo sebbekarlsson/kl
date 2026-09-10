@@ -521,4 +521,32 @@ void test_io_stream_write_timeout_drops_only_the_locked_sink();
 void test_io_stream_sink_ids_unique_across_funnels();
 void test_io_stream_stress_sink_churn_per_frame();
 
+/* ===================== profiler (test_profiler.c) ===================== */
+void test_profiler_init_destroy();
+void test_profiler_init_keeps_explicit_config();
+void test_profiler_init_unwritable_path_fails();
+void test_profiler_double_init_is_noop();
+void test_profiler_filepath_need_not_be_nul_terminated();
+void test_profiler_start_kill_are_idempotent();
+void test_profiler_end_without_begin_is_noop();
+void test_profiler_begin_end_submits_point();
+void test_profiler_nested_blocks_record_depth_and_lifo_order();
+void test_profiler_sequential_blocks_keep_submission_order();
+void test_profiler_label_is_copied_at_end();
+void test_profiler_label_is_truncated_to_cap();
+void test_profiler_label_is_json_escaped();
+void test_profiler_nesting_beyond_max_depth_stays_balanced();
+void test_profiler_full_queue_drops_points();
+void test_profiler_drained_queue_accepts_again();
+void test_profiler_flush_without_writer_returns_false();
+void test_profiler_flush_waits_for_writes();
+void test_profiler_kill_writes_everything_submitted();
+void test_profiler_restart_after_kill_appends();
+void test_profiler_destroy_stops_writer_and_drains();
+void test_profiler_threads_have_independent_stacks();
+void test_profiler_threads_stress_with_small_queue();
+void test_profiler_thread_exit_releases_stack();
+void test_profiler_stack_pool_grows_beyond_max_threads();
+void test_profiler_two_profilers_are_independent();
+
 #endif

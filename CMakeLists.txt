@@ -90,6 +90,7 @@ if (KL_BUILD_EXECUTABLES)
   add_subproject(executables test)
   add_subproject(executables kl_playground)
   add_subproject(executables kl_bench)
+  add_subproject(executables kl_profile)
   target_include_directories(kl_bench PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/executables/test/include)
   # Reuse the test suites for benchmarking: the test functions referenced via
   # TEST_ENTRIES are defined in executables/test/src/test_*.c, which are otherwise
