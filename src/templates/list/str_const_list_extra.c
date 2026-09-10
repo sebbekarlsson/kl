@@ -52,3 +52,10 @@ bool kl_str_const_list_copy_deep(KL_str_const_List* dest, KL_str_const_List src,
 
   return dest->length > 0 && dest->items != 0;
 }
+
+
+KL_str_const_List kl_str_const_list_copy_deep_return(KL_str_const_List src, KL_Allocator* allocator) {
+  KL_str_const_List result = {0};
+  kl_str_const_list_copy_deep(&result, src, allocator);
+  return result;
+}
