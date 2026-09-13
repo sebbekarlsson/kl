@@ -1,6 +1,7 @@
 #include <kl/hash/hash.h>
 #include <kl/common/number.h>
 #include <kl/macros.h>
+#include <assert.h>
 #include <string.h>
 #include <stddef.h>
 #include <ctype.h>
@@ -184,4 +185,18 @@ static const KL_StrConst KL_UUIDV4_FORMAT = KL_STR_CONST_LIT("xxxxxxxx-xxxx-4xxx
 
 bool kl_hash_uint32_next_string_uuidv4(uint32_t* seed, KL_StrBuffer* out) {
   return kl_hash_uint32_next_string_pattern(seed, KL_UUIDV4_FORMAT, out);
+}
+
+
+uint8_t* kl_hash_uint32_next_choice(uint32_t* seed, uint8_t* items, size_t item_size, int64_t item_count) {
+  assert(seed != 0);
+  assert(items != 0);
+  assert(item_count > 0);
+  assert(item_size > 0);
+
+  int64_t idx = (int64_t)kl_hash_uint32_next_int32(seed, 0, item_count-1);
+  assert(idx >= 0);
+  assert(idx < item_count);
+
+  return &items[idx * item_size];
 }

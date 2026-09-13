@@ -60,4 +60,6 @@ bool kl_hash_uint32_next_string_pattern(uint32_t* seed, KL_StrConst pattern, KL_
 
 bool kl_hash_uint32_next_string_uuidv4(uint32_t* seed, KL_StrBuffer* out);
 
+uint8_t* kl_hash_uint32_next_choice(uint32_t* seed, uint8_t* items, size_t item_size, int64_t item_count);
+
 #endif

@@ -229,6 +229,16 @@ KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_StrConst between,
   return KL_STR_BUFFER_TO_STR_CONST(buff);
 }
 
+KL_StrConst kl_str_const_to_lower(KL_StrConst str, KL_Allocator* allocator) {
+  if (str.length <= 0 || str.value == 0) return str;
+
+  char* copy = kl_allocator_strdup(allocator, str.value, str.length);
+  assert(copy != 0);
+  copy[0] = tolower(copy[0]);
+
+  return (KL_StrConst){ .value = copy, .length = str.length };
+}
+
 KL_StrConst kl_str_const_replace(KL_StrConst str, KL_StrConst search, KL_StrConst repl, bool all, KL_StrBuffer* buffer) {
   assert(buffer != 0);
 

@@ -55,6 +55,8 @@ KL_StrConst kl_str_const_concat(KL_StrConst a, KL_StrConst b, KL_Allocator* allo
 
 KL_StrConst kl_str_const_join(KL_StrConst a, KL_StrConst b, KL_StrConst between, KL_Allocator* allocator);
 
+KL_StrConst kl_str_const_to_lower(KL_StrConst str, KL_Allocator* allocator);
+
 typedef struct {
   char* data;
   int64_t length;
