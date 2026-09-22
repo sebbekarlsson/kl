@@ -112,7 +112,11 @@ void kl_NAME_hashmap_destroy(KL_NAME_Hashmap *map) {
 
   if (map->slots.items != 0 && map->config.allocator == 0) {
     free(map->slots.items);
+  } else if (map->config.allocator != 0 && map->slots.allocation.size > 0 && map->config.allocator->initialized) {
+    // hands the slots back to a tracking allocator (a no-op on any other)
+    kl_allocator_free_allocation(map->config.allocator, map->slots.allocation);
   }
+  map->slots.allocation = (KL_Allocation){0};
   map->slots.items = 0;
   map->slots.length = 0;
   map->n_collisions = 0;

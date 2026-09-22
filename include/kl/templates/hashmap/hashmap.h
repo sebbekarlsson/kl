@@ -159,7 +159,10 @@ This file was automatically generated and must not be modified directly.
     assert(map->initialized == true);                                                                                                                                                                   \
     if (map->slots.items != 0 && map->config.allocator == 0) {                                                                                                                                          \
       free(map->slots.items);                                                                                                                                                                           \
+    } else if (map->config.allocator != 0 && map->slots.allocation.size > 0 && map->config.allocator->initialized) {                                                                                    \
+      kl_allocator_free_allocation(map->config.allocator, map->slots.allocation);                                                                                                                       \
     }                                                                                                                                                                                                   \
+    map->slots.allocation = (KL_Allocation){0};                                                                                                                                                         \
     map->slots.items = 0;                                                                                                                                                                               \
     map->slots.length = 0;                                                                                                                                                                              \
     map->n_collisions = 0;                                                                                                                                                                              \
