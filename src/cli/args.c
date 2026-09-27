@@ -14,6 +14,16 @@ static int64_t kl_cli_index_of(KL_StrConst str, char c) {
 /* Strip one pair of matching surrounding quotes, e.g. "bar" -> bar.
    Shells usually strip these themselves; this only matters when the
    quotes reach argv literally (escaped/nested quoting). */
+/* A value that starts with '-' is the next flag, not this key's value —
+ * unless it is a negative number ("-45.5", "-.5"): no flag is spelt like
+ * that, and `--pos -45.5,2,3` has to be able to carry one. */
+static bool kl_cli_looks_like_flag(KL_StrConst arg) {
+  if (!kl_str_const_starts_with(arg, KL_STR_CONST_LIT("-"))) return false;
+  if (arg.length < 2) return true;
+  char c = arg.value[1];
+  return !((c >= '0' && c <= '9') || c == '.');
+}
+
 static KL_StrConst kl_cli_unquote(KL_StrConst str) {
   if (str.value == 0 || str.length < 2) return str;
   char first = str.value[0];
@@ -66,7 +76,7 @@ bool kl_cli_find_arg(int argc, const char* argv[], KL_StrConst key, KL_StrConst*
       if (
         arg_b.value != 0 &&
         arg_b.length > 0 &&
-        !kl_str_const_starts_with(arg_b, KL_STR_CONST_LIT("-"))
+        !kl_cli_looks_like_flag(arg_b)
       ) {
         *out = arg_b;
         return true;
