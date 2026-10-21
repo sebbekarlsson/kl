@@ -69,14 +69,8 @@ static bool parse_value(KL_CLIArgType type, KL_StrConst value, KL_CLIArgParsed* 
     case KL_CLI_ARG_BOOLEAN: {
       out->type = KL_CLI_ARG_BOOLEAN;
       // A boolean flag is true simply by being present: kl_cli_get_arg returns
-      // the key name itself for a bare `--flag`. So anything that isn't an
-      // explicit falsey value counts as true.
-      out->as.boolean = !(kl_str_const_eq(value, KL_STR_CONST_LIT("false")) ||
-                          kl_str_const_eq(value, KL_STR_CONST_LIT("FALSE")) ||
-                          kl_str_const_eq(value, KL_STR_CONST_LIT("False")) ||
-                          kl_str_const_eq(value, KL_STR_CONST_LIT("0")) ||
-                          kl_str_const_eq(value, KL_STR_CONST_LIT("no")) ||
-                          kl_str_const_eq(value, KL_STR_CONST_LIT("off")));
+      // the key name itself for a bare `--flag`.
+      out->as.boolean = kl_cli_value_is_true(value);
       return true;
     };
     case KL_CLI_ARG_FLOAT: {

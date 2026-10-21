@@ -94,3 +94,18 @@ int64_t kl_cli_get_arg_int(int argc, char* argv[], KL_StrConst key, int64_t fall
   if (arg.value == 0) return fallback;
   return atoll(arg.value);
 }
+
+bool kl_cli_value_is_true(KL_StrConst value) {
+  return !(kl_str_const_eq(value, KL_STR_CONST_LIT("false")) ||
+           kl_str_const_eq(value, KL_STR_CONST_LIT("FALSE")) ||
+           kl_str_const_eq(value, KL_STR_CONST_LIT("False")) ||
+           kl_str_const_eq(value, KL_STR_CONST_LIT("0")) ||
+           kl_str_const_eq(value, KL_STR_CONST_LIT("no")) ||
+           kl_str_const_eq(value, KL_STR_CONST_LIT("off")));
+}
+
+bool kl_cli_get_arg_bool(int argc, char* argv[], KL_StrConst key, bool fallback) {
+  KL_StrConst arg = {0};
+  if (!kl_cli_find_arg(argc, (const char**)argv, key, &arg)) return fallback;
+  return kl_cli_value_is_true(arg);
+}
