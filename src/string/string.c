@@ -290,7 +290,10 @@ bool kl_str_buffer_fit(KL_StrBuffer* buff, int64_t extra) {
 
   if (avail >= extra) return true;
   
-  int64_t new_size = buff->capacity + KL_MAX(buff->bump_size, extra);
+  /* Grow by at least the current capacity, so a buffer built up a piece at a
+     time doubles: a fixed step makes the total copied (and, in an arena that
+     never frees, the total allocated) quadratic in the final length. */
+  int64_t new_size = buff->capacity + KL_MAX(KL_MAX(buff->bump_size, extra), buff->capacity);
 
   buff->data = (char*)kl_allocator_realloc(buff->allocator, new_size * sizeof(char), &buff->allocation);
   assert(buff->data != 0);

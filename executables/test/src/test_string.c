@@ -177,6 +177,31 @@ void test_jaro_winkler_single_char() {
   KL_TEST_EXPECT_EQ_FLOAT(kl_str_const_jaro_winkler(KL_STR_CONST_LIT("A"), KL_STR_CONST_LIT("B"), 0.1f), 0.0f, 0.0001f);
 }
 
+void test_str_buffer_grows_geometrically(KL_TestFunctionContext* ctx) {
+  KL_Allocator allocator = {0};
+  kl_allocator_init(&allocator, (KL_AllocatorConfig){ .capacity = 1024 });
+
+  // A small fixed step must not make a long buffer grow linearly: in an arena
+  // every old copy stays allocated, so that's quadratic memory.
+  KL_StrBuffer buffer = { .allocator = &allocator, .bump_size = 16 };
+  int64_t grows = 0;
+  int64_t capacity = buffer.capacity;
+  for (int64_t i = 0; i < 1000000; i++) {
+    KL_TEST_EXPECT_EXPR(kl_str_buffer_append_char(&buffer, 'a' + (char)(i % 26)));
+    if (buffer.capacity != capacity) {
+      grows++;
+      capacity = buffer.capacity;
+    }
+  }
+  KL_TEST_EXPECT_EQ_INT(buffer.length, 1000000);
+  KL_TEST_EXPECT_EQ_CHAR(buffer.data[buffer.length], '\0');
+  KL_TEST_EXPECT_EQ_CHAR(buffer.data[999999], 'a' + (char)(999999 % 26));
+  KL_TEST_ASSERT(grows < 40, "capacity doubles");
+  KL_TEST_ASSERT(buffer.capacity < 4 * 1000000, "capacity stays within a constant factor");
+
+  kl_allocator_destroy(&allocator);
+}
+
 void test_str_buffer_append_fmt(KL_TestFunctionContext* ctx) {
   KL_Allocator allocator = {0};
   kl_allocator_init(&allocator, (KL_AllocatorConfig){ .capacity = 1024 });
