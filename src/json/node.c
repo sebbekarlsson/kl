@@ -286,7 +286,7 @@ bool kl_json_node_select_boolean(KL_JSONNode* node, KL_StrConst path, bool fallb
   switch (selected->type) {
     case KL_JSON_NODE_BOOLEAN: return selected->as.boolean;
     case KL_JSON_NODE_INT: return selected->as.number_int > 0;
-    case KL_JSON_NODE_FLOAT: return selected->as.number_int > 0.0;
+    case KL_JSON_NODE_FLOAT: return selected->as.number_float > 0.0;
     case KL_JSON_NODE_STRING: return kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("true")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("yes")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("1")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("on"));
     default: return fallback;
   } 

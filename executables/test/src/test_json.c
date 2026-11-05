@@ -185,6 +185,18 @@ void test_json_node_utils(KL_TestFunctionContext* ctx) {
   }
   KL_TEST_IT_END(ctx);
 
+  KL_TEST_IT(ctx, "selects a floating point number as a boolean (true when > 0)");
+  {
+    KL_JSONParser parser = {0};
+    kl_json_parser_init(&parser);
+    KL_JSONNode* node = kl_json_parser_parse(&parser, KL_STR_CONST_LIT("{ \"half\": 0.5, \"neg\": -2.5, \"zero\": 0.0 }"));
+    KL_TEST_EXPECT_EXPR(kl_json_node_select_boolean(node, KL_STR_CONST_LIT("half"), false) == true);
+    KL_TEST_EXPECT_EXPR(kl_json_node_select_boolean(node, KL_STR_CONST_LIT("neg"), true) == false);
+    KL_TEST_EXPECT_EXPR(kl_json_node_select_boolean(node, KL_STR_CONST_LIT("zero"), true) == false);
+    kl_json_parser_destroy(&parser);
+  }
+  KL_TEST_IT_END(ctx);
+
   KL_TEST_IT(ctx, "selects an integer from an array");
   {
     KL_JSONParser parser = {0};
