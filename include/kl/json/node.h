@@ -80,6 +80,8 @@ KL_JSONNode* kl_json_node_select(KL_JSONNode* node, KL_StrConst path);
 
 int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fallback);
 
+bool kl_json_node_select_boolean(KL_JSONNode* node, KL_StrConst path, bool fallback);
+
 double kl_json_node_select_float(KL_JSONNode* node, KL_StrConst path, double fallback);
 
 KL_StrConst kl_json_node_select_string(KL_JSONNode* node, KL_StrConst path, KL_StrConst fallback);

@@ -275,6 +275,23 @@ int64_t kl_json_node_select_int(KL_JSONNode* node, KL_StrConst path, int64_t fal
   return selected->as.number_int;
 }
 
+
+bool kl_json_node_select_boolean(KL_JSONNode* node, KL_StrConst path, bool fallback) {
+  if (path.length <= 0 || path.value == 0) return fallback;
+  if (!is_traversable(node)) return fallback;
+
+  KL_JSONNode* selected = kl_json_node_select(node, path);
+  if (selected == 0) return fallback;
+
+  switch (selected->type) {
+    case KL_JSON_NODE_BOOLEAN: return selected->as.boolean;
+    case KL_JSON_NODE_INT: return selected->as.number_int > 0;
+    case KL_JSON_NODE_FLOAT: return selected->as.number_int > 0.0;
+    case KL_JSON_NODE_STRING: return kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("true")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("yes")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("1")) || kl_str_const_eq(selected->as.string, KL_STR_CONST_LIT("on"));
+    default: return fallback;
+  } 
+}
+
 double kl_json_node_select_float(KL_JSONNode* node, KL_StrConst path, double fallback) {
   if (path.length <= 0 || path.value == 0) return fallback;
   if (!is_traversable(node)) return fallback;
