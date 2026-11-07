@@ -52,6 +52,7 @@ void test_str_const_eq();
 void test_str_const_slice();
 void test_str_const_includes();
 void test_str_const_remove_numeric_prefix(KL_TestFunctionContext* ctx);
+void test_str_const_is_numeric_accepts_exponents(KL_TestFunctionContext* ctx);
 void test_str_const_remove_numeric_suffix(KL_TestFunctionContext* ctx);
 void test_str_const_replace(KL_TestFunctionContext* ctx);
 void test_str_buffer_grows_geometrically(KL_TestFunctionContext* ctx);
@@ -311,6 +312,11 @@ void test_cli_program_positional_defaults_and_required(KL_TestFunctionContext* c
 void test_cli_program_typed_and_extra_positionals(KL_TestFunctionContext* ctx);
 void test_cli_program_deferred_options(KL_TestFunctionContext* ctx);
 void test_cli_program_help_dispatches_command(KL_TestFunctionContext* ctx);
+void test_cli_get_arg_only_matches_flags(KL_TestFunctionContext* ctx);
+void test_cli_program_repeated_options(KL_TestFunctionContext* ctx);
+void test_cli_program_boolean_values(KL_TestFunctionContext* ctx);
+void test_cli_program_positional_after_negative_value(KL_TestFunctionContext* ctx);
+void test_cli_program_reject_unknown(KL_TestFunctionContext* ctx);
 
 /* ===================== binary_pool (test_binary_pool.c) ===================== */
 void test_binary_pool_init_destroy();

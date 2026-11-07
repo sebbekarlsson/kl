@@ -517,3 +517,281 @@ void test_cli_program_help_dispatches_command(KL_TestFunctionContext* ctx) {
   }
   KL_TEST_IT_END(ctx);
 }
+
+/* ---- which tokens are options ---- */
+
+void test_cli_get_arg_only_matches_flags(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "does not take a value that spells an option's name for that option");
+  {
+    char* argv[] = {"prog", "--save", "chat"};
+    int argc = (int)KL_ARRAY_LEN(argv);
+
+    expect_arg(kl_cli_get_arg(argc, argv, KL_STR_CONST_LIT("--save"), false), "chat");
+    KL_StrConst got = kl_cli_get_arg(argc, argv, KL_STR_CONST_LIT("--chat"), false);
+    KL_TEST_EXPECT_EXPR(got.value == 0);
+
+    /* argv[0] or a positional is not a key either. */
+    char* argv2[] = {"prog", "run", "name"};
+    KL_TEST_EXPECT_EXPR(kl_cli_get_arg(3, argv2, KL_STR_CONST_LIT("--name"), false).value == 0);
+    KL_TEST_EXPECT_EXPR(kl_cli_get_arg(3, argv2, KL_STR_CONST_LIT("--prog"), false).value == 0);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "walks every occurrence with kl_cli_find_arg_from");
+  {
+    const char* argv[] = {"prog", "--x", "a", "--y", "--x=b", "--x", "c"};
+    int argc = (int)KL_ARRAY_LEN(argv);
+    const char* expected[] = {"a", "b", "c"};
+    int64_t n = 0;
+    KL_StrConst got = {0};
+    for (int i = kl_cli_find_arg_from(argc, argv, KL_STR_CONST_LIT("x"), 0, &got);
+         i >= 0;
+         i = kl_cli_find_arg_from(argc, argv, KL_STR_CONST_LIT("x"), i + 1, &got)) {
+      KL_TEST_ASSERT(n < 3, "too many occurrences");
+      expect_arg(got, expected[n++]);
+    }
+    KL_TEST_EXPECT_EQ_INT(n, 3);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+/* ---- repeated options ---- */
+
+typedef struct {
+  bool called;
+  int64_t count;
+  KL_StrConst values[8];
+  int64_t plain;
+  bool reject_ok;
+} KL_CLITestRepeat;
+
+static int kl_cli_test_repeat_fn(KL_CLICommand* cmd) {
+  KL_CLITestRepeat* cap = (KL_CLITestRepeat*)cmd->config.user_ptr;
+  cap->called = true;
+  cap->count = kl_cli_command_get_arg_count(cmd, KL_STR_CONST_LIT("exclude"));
+  for (int64_t i = 0; i < cap->count && i < 8; i++) {
+    cap->values[i] = kl_cli_command_get_arg_at(cmd, KL_STR_CONST_LIT("exclude"), i).as.string;
+  }
+  cap->plain = kl_cli_command_get_integer(cmd, KL_STR_CONST_LIT("level"), -1);
+  return 0;
+}
+
+static void kl_cli_test_define_repeat(KL_CLIProgram* prog, KL_CLITestRepeat* cap, bool with_default) {
+  KL_CLICommand* cmd = kl_cli_program_define_command(prog, (KL_CLICommandConfig){
+    .name = KL_STR_CONST_LIT("run"),
+    .fn = kl_cli_test_repeat_fn,
+    .user_ptr = cap
+  });
+  KL_CLIArgConfig exclude = {
+    .name = KL_STR_CONST_LIT("exclude"),
+    .type = KL_CLI_ARG_STRING,
+    .repeated = true,
+  };
+  if (with_default) {
+    exclude.default_value = (KL_CLIArgParsed){ .type = KL_CLI_ARG_STRING, .as.string = KL_STR_CONST_LIT("none") };
+  }
+  kl_cli_command_add_option(cmd, exclude);
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("level"),
+    .type = KL_CLI_ARG_INTEGER
+  });
+}
+
+void test_cli_program_repeated_options(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "keeps every occurrence of a repeated option, in order");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+    KL_CLITestRepeat cap = {0};
+    kl_cli_test_define_repeat(&prog, &cap, false);
+
+    char* argv[] = {"prog", "run", "--exclude", "a", "--level", "2", "--exclude=b", "--exclude", "c", "--level", "5"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    KL_TEST_EXPECT_EQ_INT(cap.count, 3);
+    expect_arg(cap.values[0], "a");
+    expect_arg(cap.values[1], "b");
+    expect_arg(cap.values[2], "c");
+    /* a plain option still takes its first occurrence */
+    KL_TEST_EXPECT_EQ_INT(cap.plain, 2);
+    KL_TEST_EXPECT_EXPR(kl_cli_command_get_arg_at(
+      (KL_CLICommand*)kl_binary_sparseset_get(&prog.commands.set, 0),
+      KL_STR_CONST_LIT("exclude"), 3).type == KL_CLI_ARG_UNDEFINED);
+
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "an absent repeated option has its default once, or nothing");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+    KL_CLITestRepeat cap = {0};
+    kl_cli_test_define_repeat(&prog, &cap, true);
+    char* argv[] = {"prog", "run"};
+    KL_TEST_EXPECT_EQ_INT(kl_cli_program_run(&prog, 2, argv), 0);
+    KL_TEST_EXPECT_EQ_INT(cap.count, 1);
+    expect_arg(cap.values[0], "none");
+    kl_cli_program_destroy(&prog);
+
+    KL_CLIProgram prog2 = {0};
+    kl_cli_program_init(&prog2, (KL_CLIProgramConfig){0});
+    KL_CLITestRepeat cap2 = {0};
+    kl_cli_test_define_repeat(&prog2, &cap2, false);
+    KL_TEST_EXPECT_EQ_INT(kl_cli_program_run(&prog2, 2, argv), 0);
+    KL_TEST_EXPECT_EQ_INT(cap2.count, 0);
+    kl_cli_program_destroy(&prog2);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+/* ---- boolean values ---- */
+
+void test_cli_program_boolean_values(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "a bare flag is true and a boolean word sets it either way");
+  {
+    struct { const char* args[3]; int n; bool expected; } cases[] = {
+      { { "--force" }, 1, true },
+      { { "--force=no" }, 1, false },
+      { { "--force=1" }, 1, true },
+      { { "--force", "off" }, 2, false },
+      { { "--force", "yes" }, 2, true },
+    };
+    for (size_t c = 0; c < KL_ARRAY_LEN(cases); c++) {
+      KL_CLIProgram prog = {0};
+      kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+      KL_CLITestCapture cap = {0};
+      kl_cli_test_define_copy(&prog, &cap);
+
+      char* argv[6] = {"prog", "copy", "a.txt"};
+      for (int i = 0; i < cases[c].n; i++) argv[3 + i] = (char*)cases[c].args[i];
+      int rc = kl_cli_program_run(&prog, 3 + cases[c].n, argv);
+
+      KL_TEST_EXPECT_EQ_INT(rc, 0);
+      KL_TEST_EXPECT_EXPR(cap.force == cases[c].expected);
+      expect_arg(cap.from, "a.txt");
+      kl_cli_program_destroy(&prog);
+    }
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "a flag that would swallow a positional is an error, not true");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+    KL_CLITestCapture cap = {0};
+    kl_cli_test_define_copy(&prog, &cap);
+
+    char* argv[] = {"prog", "copy", "--force", "a.txt"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EXPR(rc != 0);
+    KL_TEST_EXPECT_EXPR(!cap.called);
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "a value that is not a boolean word is invalid, positionals or not");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+    KL_CLITestCapture cap = {0};
+    kl_cli_test_define_copy(&prog, &cap);
+
+    /* both positionals are present, so only the boolean rule can fail this */
+    char* argv[] = {"prog", "copy", "a.txt", "b.txt", "--force", "banana"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EXPR(rc != 0);
+    KL_TEST_EXPECT_EXPR(!cap.called);
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+/* ---- positionals next to negative numbers ---- */
+
+void test_cli_program_positional_after_negative_value(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "a negative number is an option's value, not an option eating the next token");
+  {
+    KL_CLIProgram prog = {0};
+    kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+    KL_CLITestCapture cap = {0};
+    kl_cli_test_define_copy(&prog, &cap);
+
+    char* argv[] = {"prog", "copy", "--level", "-3", "a.txt", "b.txt"};
+    int rc = kl_cli_program_run(&prog, (int)KL_ARRAY_LEN(argv), argv);
+
+    KL_TEST_EXPECT_EQ_INT(rc, 0);
+    expect_arg(cap.from, "a.txt");
+    expect_arg(cap.to, "b.txt");
+    KL_TEST_EXPECT_EQ_INT(cap.positional_count, 2);
+    kl_cli_program_destroy(&prog);
+  }
+  KL_TEST_IT_END(ctx);
+}
+
+/* ---- kl_cli_command_reject_unknown ---- */
+
+static int kl_cli_test_strict_fn(KL_CLICommand* cmd) {
+  KL_CLITestRepeat* cap = (KL_CLITestRepeat*)cmd->config.user_ptr;
+  cap->called = true;
+  // A deferred option is known to the check too.
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("late"),
+    .type = KL_CLI_ARG_BOOLEAN
+  });
+  cap->reject_ok = kl_cli_command_reject_unknown(cmd);
+  return 0;
+}
+
+static bool kl_cli_test_strict_run(int argc, char** argv) {
+  KL_CLIProgram prog = {0};
+  kl_cli_program_init(&prog, (KL_CLIProgramConfig){0});
+  KL_CLITestRepeat cap = {0};
+  KL_CLICommand* cmd = kl_cli_program_define_command(&prog, (KL_CLICommandConfig){
+    .name = KL_STR_CONST_LIT("run"),
+    .fn = kl_cli_test_strict_fn,
+    .user_ptr = &cap
+  });
+  kl_cli_command_add_positional(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("target"),
+    .type = KL_CLI_ARG_STRING
+  });
+  kl_cli_command_add_option(cmd, (KL_CLIArgConfig){
+    .name = KL_STR_CONST_LIT("steps"),
+    .type = KL_CLI_ARG_INTEGER
+  });
+  int rc = kl_cli_program_run(&prog, argc, argv);
+  bool ok = rc == 0 && cap.called && cap.reject_ok;
+  kl_cli_program_destroy(&prog);
+  return ok;
+}
+
+void test_cli_program_reject_unknown(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "accepts declared options, deferred ones and declared positionals");
+  {
+    char* a[] = {"prog", "run", "x", "--steps", "10", "--late"};
+    KL_TEST_EXPECT_EXPR(kl_cli_test_strict_run((int)KL_ARRAY_LEN(a), a));
+    char* b[] = {"prog", "run", "--steps=10"};
+    KL_TEST_EXPECT_EXPR(kl_cli_test_strict_run((int)KL_ARRAY_LEN(b), b));
+    char* c[] = {"prog", "run"};
+    KL_TEST_EXPECT_EXPR(kl_cli_test_strict_run((int)KL_ARRAY_LEN(c), c));
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "rejects a misspelt option, in either syntax, and an extra positional");
+  {
+    char* a[] = {"prog", "run", "--stpes", "10"};
+    KL_TEST_EXPECT_EXPR(!kl_cli_test_strict_run((int)KL_ARRAY_LEN(a), a));
+    char* b[] = {"prog", "run", "--stpes=10"};
+    KL_TEST_EXPECT_EXPR(!kl_cli_test_strict_run((int)KL_ARRAY_LEN(b), b));
+    char* c[] = {"prog", "run", "x", "y"};
+    KL_TEST_EXPECT_EXPR(!kl_cli_test_strict_run((int)KL_ARRAY_LEN(c), c));
+    /* the value of an unknown option is not counted as a positional too */
+    char* d[] = {"prog", "run", "x", "--nope", "v", "--steps", "1"};
+    KL_TEST_EXPECT_EXPR(!kl_cli_test_strict_run((int)KL_ARRAY_LEN(d), d));
+  }
+  KL_TEST_IT_END(ctx);
+}

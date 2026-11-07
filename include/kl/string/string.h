@@ -36,7 +36,8 @@ int64_t kl_str_const_first_index_of(KL_StrConst str, KL_StrConst sub);
 
 bool kl_str_const_is_integer(KL_StrConst str);
 
-// True if the string is an integer or a decimal float (e.g. "3", "-3", "3.14").
+// True if the string is an integer or a decimal float, optionally with an
+// exponent (e.g. "3", "-3", "3.14", "3e-4", "1.5E+10").
 bool kl_str_const_is_numeric(KL_StrConst str);
 
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length);

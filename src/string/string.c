@@ -90,7 +90,8 @@ bool kl_str_const_is_numeric(KL_StrConst str) {
   bool seen_dot = false;
   bool seen_digit = false;
 
-  for (int64_t i = start; i < str.length; i++) {
+  int64_t i = start;
+  for (; i < str.length; i++) {
     char c = str.value[i];
     if (c == '.') {
       if (seen_dot) return false; // at most one decimal point
@@ -98,11 +99,22 @@ bool kl_str_const_is_numeric(KL_StrConst str) {
     } else if (isdigit((unsigned char)c)) {
       seen_digit = true;
     } else {
-      return false;
+      break;
     }
   }
+  if (!seen_digit) return false; // reject "", "-", ".", "-.", "e5" etc.
+  if (i == str.length) return true;
 
-  return seen_digit; // reject "", "-", ".", "-." etc.
+  // An exponent: 'e' or 'E', an optional sign, then at least one digit
+  // ("3e-4", "1.5E+10"). Anything else after the mantissa is not numeric.
+  if (str.value[i] != 'e' && str.value[i] != 'E') return false;
+  i++;
+  if (i < str.length && (str.value[i] == '-' || str.value[i] == '+')) i++;
+  if (i == str.length) return false; // "1e", "1e-"
+  for (; i < str.length; i++) {
+    if (!isdigit((unsigned char)str.value[i])) return false;
+  }
+  return true;
 }
 
 KL_StrConst kl_str_const_slice(KL_StrConst str, int64_t offset, int64_t length) {

@@ -45,6 +45,17 @@ void kl_cli_program_destroy(KL_CLIProgram* program) {
   memset(program, 0, sizeof(KL_CLIProgram));
 }
 
+// true/false, 1/0, yes/no, on/off (the falsey set is kl_cli_value_is_true's).
+static bool parse_boolean_word(KL_StrConst value, bool* out) {
+  static const char* truthy[] = { "true", "TRUE", "True", "1", "yes", "on" };
+  static const char* falsey[] = { "false", "FALSE", "False", "0", "no", "off" };
+  for (size_t i = 0; i < sizeof(truthy) / sizeof(truthy[0]); i++) {
+    if (kl_str_const_eq(value, KL_STR_CONST(truthy[i]))) { *out = true; return true; }
+    if (kl_str_const_eq(value, KL_STR_CONST(falsey[i]))) { *out = false; return true; }
+  }
+  return false;
+}
+
 static bool parse_value(KL_CLIArgType type, KL_StrConst value, KL_CLIArgParsed* out) {
   switch (type) {
     case KL_CLI_ARG_UNDEFINED: return false;
@@ -67,11 +78,10 @@ static bool parse_value(KL_CLIArgType type, KL_StrConst value, KL_CLIArgParsed* 
       return true;
     };
     case KL_CLI_ARG_BOOLEAN: {
+      // Only a boolean word: a bare `--flag` (whose value is the key itself)
+      // is handled by parse_supplied, which knows the key.
       out->type = KL_CLI_ARG_BOOLEAN;
-      // A boolean flag is true simply by being present: kl_cli_get_arg returns
-      // the key name itself for a bare `--flag`.
-      out->as.boolean = kl_cli_value_is_true(value);
-      return true;
+      return parse_boolean_word(value, &out->as.boolean);
     };
     case KL_CLI_ARG_FLOAT: {
       out->type = KL_CLI_ARG_FLOAT;
@@ -95,6 +105,22 @@ typedef enum {
   PARSE_ARG_INVALID   // supplied, but the value is not a valid `type`
 } ParseArgResult;
 
+// A value found on the command line for option `argcfg`. A supplied value
+// that fails to parse is an error even for an optional argument — silently
+// falling back to the default would hide typos.
+static bool parse_supplied(KL_CLIArgConfig argcfg, KL_StrConst value, KL_CLIArgParsed* out) {
+  out->name = argcfg.name;
+  KL_StrConst bare = kl_str_const_remove_prefix(argcfg.name, KL_STR_CONST_LIT("--"));
+  bare = kl_str_const_remove_prefix(bare, KL_STR_CONST_LIT("-"));
+  if (argcfg.type == KL_CLI_ARG_BOOLEAN && kl_str_const_eq(value, bare)) {
+    // A bare `--flag`: kl_cli_get_arg returns the key name itself.
+    out->type = KL_CLI_ARG_BOOLEAN;
+    out->as.boolean = true;
+    return true;
+  }
+  return parse_value(argcfg.type, value, out);
+}
+
 // `out_raw` receives the raw supplied token (for error reporting) when the
 // option was present on the command line. `lenient` (help mode) keeps a
 // missing required arg from exit(1)-ing inside kl_cli_get_arg.
@@ -112,10 +138,7 @@ static inline ParseArgResult parse_arg(KL_CLICommand* cmd, KL_CLIArgConfig argcf
     return PARSE_ARG_ABSENT;
   }
   *out_raw = value;
-  out->name = argcfg.name;
-  // A supplied value that fails to parse is an error even for an optional
-  // argument — silently falling back to the default would hide typos.
-  return parse_value(argcfg.type, value, out) ? PARSE_ARG_OK : PARSE_ARG_INVALID;
+  return parse_supplied(argcfg, value, out) ? PARSE_ARG_OK : PARSE_ARG_INVALID;
 }
 
 static const char* arg_type_name(KL_CLIArgType type) {
@@ -155,6 +178,7 @@ static void print_arg_help(FILE* out, KL_CLIArgConfig arg, const char* prefix) {
           (int)(14 - strlen(prefix)), (int)arg.name.length, arg.name.value,
           arg_type_name(arg.type));
   if (arg.required) fprintf(out, " (required)");
+  if (arg.repeated) fprintf(out, " (repeatable)");
   print_arg_default(out, arg.default_value);
   if (arg.description.length > 0) {
     fprintf(out, "  %.*s", (int)arg.description.length, arg.description.value);
@@ -215,17 +239,53 @@ static bool str_contains_char(KL_StrConst str, char c) {
 // optional option is fine (kl_cli_command_get_* falls back). In `lenient`
 // (help) mode neither problem is an error — the command only runs to declare
 // its options and print help, so nothing may block the dispatch.
+static bool report_invalid(KL_CLIArgConfig arg_cfg, KL_StrConst raw) {
+  fprintf(stderr, "Invalid value for option '--%.*s': '%.*s' is not a valid %s\n",
+          (int)arg_cfg.name.length, arg_cfg.name.value,
+          (int)raw.length, raw.value,
+          arg_type_name(arg_cfg.type));
+  return false;
+}
+
+// A `repeated` option: every occurrence, in order, then the default if there
+// were none.
+static bool parse_and_record_repeated(KL_CLICommand* cmd, KL_CLIArgConfig arg_cfg, int argc, char* argv[], bool lenient) {
+  int64_t found = 0;
+  KL_StrConst raw = {0};
+  for (int i = kl_cli_find_arg_from(argc, (const char**)argv, arg_cfg.name, 0, &raw);
+       i >= 0;
+       i = kl_cli_find_arg_from(argc, (const char**)argv, arg_cfg.name, i + 1, &raw)) {
+    if (raw.length <= 0 || raw.value == 0) continue; // `--name=`: no value
+    KL_CLIArgParsed parsed = {0};
+    if (!parse_supplied(arg_cfg, raw, &parsed)) {
+      if (lenient) continue;
+      return report_invalid(arg_cfg, raw);
+    }
+    kl_cli_arg_parsed_list_push(&cmd->parsed_args, parsed);
+    found++;
+  }
+  if (found > 0) return true;
+
+  if (arg_cfg.default_value.type != KL_CLI_ARG_UNDEFINED) {
+    KL_CLIArgParsed parsed = arg_cfg.default_value;
+    parsed.name = arg_cfg.name;
+    kl_cli_arg_parsed_list_push(&cmd->parsed_args, parsed);
+    return true;
+  }
+  if (!arg_cfg.required || lenient) return true;
+  fprintf(stderr, "Missing required option: '--%.*s'\n", (int)arg_cfg.name.length, arg_cfg.name.value);
+  return false;
+}
+
 static bool parse_and_record_option(KL_CLICommand* cmd, KL_CLIArgConfig arg_cfg, int argc, char* argv[], bool lenient) {
+  if (arg_cfg.repeated) return parse_and_record_repeated(cmd, arg_cfg, argc, argv, lenient);
+
   KL_CLIArgParsed parsed = {0};
   KL_StrConst raw = {0};
   ParseArgResult res = parse_arg(cmd, arg_cfg, argc, argv, lenient, &parsed, &raw);
   if (res == PARSE_ARG_INVALID) {
     if (lenient) return true;
-    fprintf(stderr, "Invalid value for option '--%.*s': '%.*s' is not a valid %s\n",
-            (int)arg_cfg.name.length, arg_cfg.name.value,
-            (int)raw.length, raw.value,
-            arg_type_name(arg_cfg.type));
-    return false;
+    return report_invalid(arg_cfg, raw);
   }
   if (res == PARSE_ARG_ABSENT) {
     if (!arg_cfg.required || lenient) return true;
@@ -236,23 +296,27 @@ static bool parse_and_record_option(KL_CLICommand* cmd, KL_CLIArgConfig arg_cfg,
   return true;
 }
 
+// True if argv[i], an option token, takes argv[i + 1] as its value. Mirrors
+// kl_cli_find_arg: a `--key` without `=` consumes the next token unless that
+// one is a flag itself (a negative number is a value, not a flag).
+static bool option_consumes_next(int argc, char* argv[], int i) {
+  if (str_contains_char(KL_STR_CONST(argv[i]), '=') || i + 1 >= argc) return false;
+  KL_StrConst next = KL_STR_CONST(argv[i + 1]);
+  return next.length > 0 && !kl_cli_looks_like_flag(next);
+}
+
 // Collect the bare tokens following the command name and match them, in
-// order, against the command's declared positionals. Mirrors kl_cli_get_arg's
-// consumption rule: a bare token directly after a `--key` token (without `=`)
-// belongs to that option, not to the positionals.
+// order, against the command's declared positionals. A bare token directly
+// after a `--key` token (without `=`) belongs to that option, not to the
+// positionals.
 static bool parse_positionals(KL_CLICommand* cmd, int argc, char* argv[], bool lenient) {
   int64_t pos_index = 0;
 
   for (int i = 2; i < argc; i++) {
     KL_StrConst tok = KL_STR_CONST(argv[i]);
 
-    if (kl_str_const_starts_with(tok, KL_STR_CONST_LIT("-"))) {
-      if (!str_contains_char(tok, '=') && i + 1 < argc) {
-        KL_StrConst next = KL_STR_CONST(argv[i + 1]);
-        if (next.length > 0 && !kl_str_const_starts_with(next, KL_STR_CONST_LIT("-"))) {
-          i++;
-        }
-      }
+    if (kl_cli_looks_like_flag(tok)) {
+      if (option_consumes_next(argc, argv, i)) i++;
       continue;
     }
 
@@ -531,6 +595,75 @@ KL_CLIArgParsed kl_cli_command_get_arg(KL_CLICommand* cmd, KL_StrConst name) {
   }
 
   return (KL_CLIArgParsed){0};
+}
+
+int64_t kl_cli_command_get_arg_count(KL_CLICommand* cmd, KL_StrConst name) {
+  assert(cmd != 0);
+  assert(cmd->initialized);
+
+  int64_t n = 0;
+  for (int64_t i = 0; i < cmd->parsed_args.length; i++) {
+    if (kl_str_const_eq(cmd->parsed_args.items[i].name, name)) n++;
+  }
+  if (n > 0) return n;
+  return kl_cli_command_get_arg(cmd, name).type != KL_CLI_ARG_UNDEFINED ? 1 : 0;
+}
+
+KL_CLIArgParsed kl_cli_command_get_arg_at(KL_CLICommand* cmd, KL_StrConst name, int64_t index) {
+  assert(cmd != 0);
+  assert(cmd->initialized);
+
+  int64_t n = 0;
+  for (int64_t i = 0; i < cmd->parsed_args.length; i++) {
+    if (!kl_str_const_eq(cmd->parsed_args.items[i].name, name)) continue;
+    if (n == index) return cmd->parsed_args.items[i];
+    n++;
+  }
+  return (KL_CLIArgParsed){0};
+}
+
+static bool is_declared_option(KL_CLICommand* cmd, KL_StrConst name) {
+  if (kl_str_const_eq(name, KL_STR_CONST_LIT("help")) || kl_str_const_eq(name, KL_STR_CONST_LIT("h"))) {
+    return true;
+  }
+  for (int64_t i = 0; i < cmd->config_args.length; i++) {
+    KL_StrConst declared = kl_str_const_remove_prefix(cmd->config_args.items[i].name, KL_STR_CONST_LIT("--"));
+    declared = kl_str_const_remove_prefix(declared, KL_STR_CONST_LIT("-"));
+    if (kl_str_const_eq(declared, name)) return true;
+  }
+  return false;
+}
+
+bool kl_cli_command_reject_unknown(KL_CLICommand* cmd) {
+  assert(cmd != 0);
+  assert(cmd->initialized);
+  if (cmd->argv == 0) return true; // not dispatched: no command line to check
+
+  bool ok = true;
+  int64_t bare = 0;
+  for (int i = 2; i < cmd->argc; i++) {
+    KL_StrConst tok = KL_STR_CONST(cmd->argv[i]);
+
+    if (!kl_cli_looks_like_flag(tok)) {
+      if (++bare > cmd->config_positionals.length) {
+        fprintf(stderr, "Unexpected argument: '%s'\n", cmd->argv[i]);
+        ok = false;
+      }
+      continue;
+    }
+
+    KL_StrConst name = kl_str_const_remove_prefix(tok, KL_STR_CONST_LIT("--"));
+    name = kl_str_const_remove_prefix(name, KL_STR_CONST_LIT("-"));
+    for (int64_t j = 0; j < name.length; j++) {
+      if (name.value[j] == '=') { name.length = j; break; }
+    }
+    if (!is_declared_option(cmd, name)) {
+      fprintf(stderr, "Unknown option: '%.*s'\n", (int)tok.length, tok.value);
+      ok = false;
+    }
+    if (option_consumes_next(cmd->argc, cmd->argv, i)) i++;
+  }
+  return ok;
 }
 
 KL_StrConst kl_cli_command_get_string(KL_CLICommand* cmd, KL_StrConst name, KL_StrConst fallback) {

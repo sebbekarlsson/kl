@@ -44,6 +44,12 @@ typedef struct {
   KL_CLIArgType type;
   bool required;
 
+  // An option that may be given more than once (`--exclude a --exclude b`):
+  // every occurrence is kept, in command-line order, and read back with
+  // kl_cli_command_get_arg_count / kl_cli_command_get_arg_at. A plain
+  // option's later occurrences are ignored. Options only, not positionals.
+  bool repeated;
+
   // Optional fallback used when the argument is absent. A non-UNDEFINED
   // `type` marks the default as set; its `type` must match `type` above.
   KL_CLIArgParsed default_value;
@@ -117,7 +123,10 @@ KL_CLICommand* kl_cli_program_define_command(KL_CLIProgram* program, KL_CLIComma
 
 // -------- command
 
-// Declare an option (`--name value` / `--name=value`). Normally called while
+// Declare an option (`--name value` / `--name=value`). A BOOLEAN option is
+// true when given bare (`--force`); a value, when it has one, must be a
+// boolean word -- true/false, 1/0, yes/no, on/off -- so `--force out.txt`,
+// which would otherwise swallow a positional, is an error rather than "true". Normally called while
 // building the program, before kl_cli_program_run parses the command line —
 // but it may also be called from inside the command function itself (e.g. a
 // sub-mode declaring its own options lazily): an option added after the
@@ -143,6 +152,14 @@ void kl_cli_command_terminate_if_help(KL_CLICommand* cmd);
 // reachable via kl_cli_command_get_positional.
 KL_CLICommand* kl_cli_command_add_positional(KL_CLICommand* cmd, KL_CLIArgConfig cfg);
 
+// Check the command line against what this command declares: every option
+// token must name a declared option (or be --help / -h), and there may be no
+// more bare tokens than declared positionals. Prints one line to stderr per
+// offender and returns false if there were any. Without it, an unknown option
+// is silently ignored -- a misspelt `--stpes 10` just runs with the default.
+// Call it after declaring any deferred options.
+bool kl_cli_command_reject_unknown(KL_CLICommand* cmd);
+
 // Number of positional values available to the command function (supplied
 // tokens plus applied defaults).
 int64_t kl_cli_command_positional_count(KL_CLICommand* cmd);
@@ -155,6 +172,15 @@ KL_CLIArgParsed kl_cli_command_get_positional(KL_CLICommand* cmd, int64_t index)
 // positionals. If the argument was not
 // supplied (and has no default), the returned value has type KL_CLI_ARG_UNDEFINED.
 KL_CLIArgParsed kl_cli_command_get_arg(KL_CLICommand* cmd, KL_StrConst name);
+
+// How many values a `repeated` option has (its occurrences, or 1 when only
+// its default applies; 0 when absent with no default). For a plain option, 1
+// or 0.
+int64_t kl_cli_command_get_arg_count(KL_CLICommand* cmd, KL_StrConst name);
+
+// The `index`th value of a `repeated` option, in command-line order. Out of
+// range returns a value with type KL_CLI_ARG_UNDEFINED.
+KL_CLIArgParsed kl_cli_command_get_arg_at(KL_CLICommand* cmd, KL_StrConst name, int64_t index);
 
 // Typed convenience accessors. Each returns the option's parsed value, or
 // `fallback` if the option was not supplied or was parsed as a different type.

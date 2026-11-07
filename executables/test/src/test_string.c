@@ -281,3 +281,29 @@ void test_str_scanner(KL_TestFunctionContext* ctx) {
   }
   KL_TEST_IT_END(ctx);
 }
+
+void test_str_const_is_numeric_accepts_exponents(KL_TestFunctionContext* ctx) {
+  KL_TEST_IT(ctx, "accepts integers, decimals and exponents");
+  {
+    const char* yes[] = { "3", "-3", "+3", "3.14", ".5", "-.5", "3.", "3e4", "3e-4", "1.5E+10", "-2e3", "6.02e23" };
+    for (size_t i = 0; i < KL_ARRAY_LEN(yes); i++) {
+      if (!kl_str_const_is_numeric(KL_STR_CONST(yes[i]))) {
+        fprintf(stderr, "[string test] expected \"%s\" to be numeric\n", yes[i]);
+        KL_TEST_FAILED();
+      }
+    }
+  }
+  KL_TEST_IT_END(ctx);
+
+  KL_TEST_IT(ctx, "rejects a malformed mantissa or exponent");
+  {
+    const char* no[] = { "", "-", ".", "-.", "e5", ".e5", "1e", "1e-", "1e+", "1e5.0", "3e+-1", "1.2.3", "1x", "abc", "1e5e5" };
+    for (size_t i = 0; i < KL_ARRAY_LEN(no); i++) {
+      if (kl_str_const_is_numeric(KL_STR_CONST(no[i]))) {
+        fprintf(stderr, "[string test] expected \"%s\" not to be numeric\n", no[i]);
+        KL_TEST_FAILED();
+      }
+    }
+  }
+  KL_TEST_IT_END(ctx);
+}
