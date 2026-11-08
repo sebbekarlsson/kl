@@ -24,6 +24,8 @@ typedef struct {
 
 #define KL_STR_CONST_TO_BLOB(STR) ((KL_Blob){ .value = (uint8_t*)(STR).value, .size = (STR).length })
 
+#define KL_ASSERT_STR_NOT_EMPTY(STR) do { assert((STR).length > 0 && (STR).value != 0); } while (0)
+
 bool kl_str_const_eq(KL_StrConst a, KL_StrConst b);
 
 bool kl_str_const_starts_with(KL_StrConst str, KL_StrConst sub);
