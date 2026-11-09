@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <kl/memory/allocator.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -447,7 +448,12 @@ static inline uint8_t* page_alloc_aligned(KL_Allocator* allocator, KL_AllocatorP
 static inline uint8_t* generic_malloc(KL_Allocator* allocator, int64_t size, size_t alignment, bool is_realloc, KL_Allocation* out) {
   assert(allocator->initialized == true);
   assert(size > 0);
-  
+
+  // Align as malloc does when no alignment is asked for: a struct bumped in
+  // after an odd-length string is otherwise misaligned, which is undefined
+  // behaviour (and a panic under Fil-C, which tracks pointers per 8 bytes).
+  if (alignment == 0) alignment = _Alignof(max_align_t);
+
   kl_mutex_lock(&allocator->lock);
 
   uint8_t* data = 0;
